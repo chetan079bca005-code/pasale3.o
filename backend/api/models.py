@@ -42,13 +42,13 @@ class Party(models.Model):
     ]
     Category_type=models.CharField(max_length=20,choices=CATEGORY_TYPE_CHOICES)
     is_active=models.BooleanField(default=True)
-    is_created_at=models.DateTimeField(auto_now_add=True)
+    
     is_updated_at=models.DateTimeField(auto_now=True)
    
    #meta class for ordering and plural name(settings)
     class Meta:
         verbose_name_plural = 'Parties'
-        ordering = ['-is_created_at']
+       
 
     def __str__(self):
         if hasattr(self, 'Customer'):

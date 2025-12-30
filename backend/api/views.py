@@ -255,7 +255,7 @@ class ApiProductView(APIView):
 
 
 class ApiPartyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         party_id = request.query_params.get('id')
@@ -346,7 +346,7 @@ class ApiPartyView(APIView):
             # Check by name
             if name:
                 existing_supplier = Supplier.objects.filter(
-                    name__iexact=name).first()
+                    name=name).first()
                 if existing_supplier:
                     return Response({
                         'error': 'A supplier with this name already exists.',
