@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Product, Party
+from .models import UserProfile, Product, Party, Customer, Supplier, SupplierInfo
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,3 +30,18 @@ class PartySerializer(serializers.ModelSerializer):
     class Meta:
         model = Party
         fields = "__all__"
+
+class CustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = "__all__"
+
+class SupplierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Supplier
+        fields = "__all__"
+
+class SupplierInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupplierInfo
+        fields = ['id', 'name', 'email', 'phone_no', 'address', 'company_name',  'pan_number', 'open_balance']

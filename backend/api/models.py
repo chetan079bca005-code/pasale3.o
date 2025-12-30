@@ -36,20 +36,79 @@ class Product(models.Model):
     
 class Party(models.Model):
     id=models.AutoField(primary_key=True)  # Explicit primary key
-    user = models.CharField(max_length=100)
     CATEGORY_TYPE_CHOICES = [
-        ('individual', 'Individual'),
-        ('company', 'Company'),
-    ]
-
-    CATEGORY_LEVEL_CHOICES = [
-        ('local', 'Local'),
-        ('international', 'International'),
+        ('Customer', 'Individual'),
+        ('Supplier', 'Company'),
     ]
     Category_type=models.CharField(max_length=20,choices=CATEGORY_TYPE_CHOICES)
-    Category_level=models.CharField(max_length=20,choices=CATEGORY_LEVEL_CHOICES)
-    phone=models.CharField(max_length=20)
-    
+    is_active=models.BooleanField(default=True)
+    is_created_at=models.DateTimeField(auto_now_add=True)
+    is_updated_at=models.DateTimeField(auto_now=True)
+   
+   #meta class for ordering and plural name(settings)
+    class Meta:
+        verbose_name_plural = 'Parties'
+        ordering = ['-is_created_at']
+
     def __str__(self):
-        return self.user
+        if hasattr(self, 'Customer'):
+            return f"Customer: {self.Customer.name}"
+        elif hasattr(self, 'Supplier'):
+            return f"Supplier: {self.Supplier.name}"
+       
+class Customer(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    party = models.OneToOneField(Party, on_delete=models.CASCADE, related_name='Customer')
+    name = models.CharField(max_length=100)
+    email = models.EmailField(blank=True, null=True)
+    phone_no = models.CharField(max_length=15, blank=True, null=True)
+   
+    address = models.TextField(blank=True, null=True)
+    #financial details
+    open_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    credit_limmit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    #payment preferences
+    payment_method_choices = [
+        ('Cash', 'Cash'),
+        ('Credit Card', 'Credit Card'),
+        ('Bank Transfer', 'Bank Transfer'),
+        ('UPI', 'UPI'),
+    ]
+    preferred_payment_method = models.CharField(max_length=20, choices=payment_method_choices, blank=True, null=True)
     
+    loyalty_points = models.IntegerField(default=0)
+    #additional info
+    referred_by = models.CharField(max_length=100, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+    
+class Supplier(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    party = models.OneToOneField(Party, on_delete=models.CASCADE, related_name='Supplier')
+    name = models.CharField(max_length=100)
+    code= models.CharField(max_length=50, unique=True)
+   
+    def __str__(self):
+        return self.name
+    
+class SupplierInfo(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='supplier_infos')
+    phone_no = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    pan_number = models.CharField(max_length=20, blank=True, null=True)
+    # bank details
+    bank_name = models.CharField(max_length=100, blank=True, null=True)
+    account_number = models.CharField(max_length=50, blank=True, null=True)
+    ifsc_code = models.CharField(max_length=20, blank=True, null=True)
+    # balance info
+    open_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    credit_limmit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+
+    notes= models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.supplier.name}"
