@@ -62,7 +62,7 @@ class Customer(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField(blank=True, null=True)
     phone_no = models.CharField(max_length=15, blank=True, null=True)
-   
+    Customer_code= models.CharField(max_length=50, unique=True,null=True)
     address = models.TextField(blank=True, null=True)
     #financial details
     open_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -112,3 +112,31 @@ class SupplierInfo(models.Model):
 
     def __str__(self):
         return f"{self.supplier.name}"
+    
+
+class Expense(models.Model):
+    CATEGORY_CHOICES = [
+        ('Rent', 'Rent'),
+        ('Utilities', 'Utilities'),
+        ('Salary', 'Salary'),
+        ('Inventory', 'Inventory'),
+        ('Transport', 'Transport'),
+        ('Food', 'Food'),
+        ('Office Supplies', 'Office Supplies'),
+        ('Phone', 'Phone'),
+        ('Marketing', 'Marketing'),
+        ('Other', 'Other'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='expenses')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    description = models.TextField(blank=True, null=True)
+    date = models.DateField()
+    is_necessary = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.user.username

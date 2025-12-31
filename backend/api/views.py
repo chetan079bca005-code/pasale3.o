@@ -5,8 +5,8 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.mail import send_mail
 import random
-from .models import Customer, Party, Product, Supplier, UserProfile
-from .serializers import ProductSerializer, PartySerializer, CustomerSerializer, SupplierSerializer
+from .models import Customer, Party, Product, Supplier, UserProfile, Expense
+from .serializers import ProductSerializer, PartySerializer, CustomerSerializer, SupplierSerializer, ExpenseSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from datetime import timedelta
@@ -15,6 +15,9 @@ from django.db import transaction
 
 # OTP Expiry Time (5 minutes)
 OTP_EXPIRY_TIME = timedelta(minutes=5)
+
+# Inactivity period after which a party is considered inactive (e.g., 90 days)
+PARTY_INACTIVITY_PERIOD = timedelta(days=90)
 
 # -----------------------------
 # Signup View
@@ -255,7 +258,7 @@ class ApiProductView(APIView):
 
 
 class ApiPartyView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         party_id = request.query_params.get('id')
@@ -303,6 +306,7 @@ class ApiPartyView(APIView):
             name = data.get('name')
             email = data.get('email')
             phone_no = data.get('phone_no')
+            customer_code = data.get('Customer_code')
 
             # Build filter conditions for duplicate check
             existing_customer = None
@@ -327,7 +331,14 @@ class ApiPartyView(APIView):
                         'existing_customer': CustomerSerializer(existing_customer).data
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-            
+            if customer_code:
+                existing_customer = Customer.objects.filter(
+                    Customer_code=customer_code).first()
+                if existing_customer:
+                    return Response({
+                        'error': 'A customer with this Customer code already exists.',
+                        'existing_customer': CustomerSerializer(existing_customer).data
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if Supplier already exists
         elif category == 'Supplier':
@@ -366,6 +377,7 @@ class ApiPartyView(APIView):
                 customer = Customer.objects.create(
                     party=party,
                     name=data.get('name'),
+                    Customer_code=data.get('Customer_code'),
                     email=data.get('email'),
                     phone_no=data.get('phone_no'),
                     address=data.get('address'),
@@ -409,10 +421,6 @@ class ApiPartyView(APIView):
 
         data = request.data
 
-        # Update party fields
-        party.is_active = data.get('is_active', party.is_active)
-        party.save()
-
         # Update related customer or supplier
         if party.Category_type == 'Customer' and hasattr(party, 'Customer'):
             customer = party.Customer
@@ -420,6 +428,8 @@ class ApiPartyView(APIView):
             customer.email = data.get('email', customer.email)
             customer.phone_no = data.get('phone_no', customer.phone_no)
             customer.address = data.get('address', customer.address)
+            customer.Customer_code = data.get(
+                'Customer_code', customer.Customer_code)
             customer.open_balance = data.get(
                 'open_balance', customer.open_balance)
             customer.credit_limmit = data.get(
@@ -450,7 +460,12 @@ class ApiPartyView(APIView):
                 'party': PartySerializer(party).data,
                 'supplier': SupplierSerializer(supplier).data
             }, status=status.HTTP_200_OK)
+        if party.is_updated_at:
+            time_since_last_update = timezone.now() - party.is_updated_at
+            if time_since_last_update > PARTY_INACTIVITY_PERIOD:
+                party.is_active = False
 
+        party.save()
         return Response({'error': 'No related customer or supplier found'}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, *args, **kwargs):
@@ -465,3 +480,62 @@ class ApiPartyView(APIView):
 
         party.delete()
         return Response({'message': 'Party deleted successfully!'}, status=status.HTTP_200_OK)
+
+
+class ApiExpenseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        expenses = Expense.objects.filter(user=request.user)
+        result_page = paginator.paginate_queryset(expenses, request)
+        serializer = ExpenseSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        expense_data = request.data.copy()
+        expense_data['user'] = request.user.id
+
+        serializer = ExpenseSerializer(data=expense_data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Expense created successfully!',
+                             'expense': serializer.data}, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, *args, **kwargs):
+        expense_id = request.query_params.get('id')
+        if not expense_id:
+            return Response({'error': 'Expense ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            expense_id = int(expense_id)
+            expense = Expense.objects.get(id=expense_id, user=request.user)
+        except ValueError:
+            return Response({'error': 'Invalid Expense ID'}, status=status.HTTP_400_BAD_REQUEST)
+        except Expense.DoesNotExist:
+            return Response({'error': 'Expense not found or you do not have permission to edit it.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ExpenseSerializer(
+            expense, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Expense updated successfully!',
+                             'expense': serializer.data}, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, *args, **kwargs):
+        expense_id = request.query_params.get('id')
+        if not expense_id:
+            return Response({'error': 'Expense ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            expense = Expense.objects.get(id=expense_id, user=request.user)
+        except Expense.DoesNotExist:
+            return Response({'error': 'Expense not found or you do not have permission to delete it.'}, status=status.HTTP_404_NOT_FOUND)
+
+        expense.delete()
+        return Response({'message': 'Expense deleted successfully!'}, status=status.HTTP_200_OK)

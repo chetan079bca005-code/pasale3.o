@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Product, Party, Customer, Supplier, SupplierInfo
+from .models import UserProfile, Product, Party, Customer, Supplier, SupplierInfo, Expense
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,3 +45,8 @@ class SupplierInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierInfo
         fields = ['id', 'name', 'email', 'phone_no', 'address', 'company_name',  'pan_number', 'open_balance']
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Expense
+        fields = ['id', 'user', 'amount', 'description', 'date', 'category', 'is_necessary']
