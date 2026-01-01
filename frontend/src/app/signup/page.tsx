@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
-import { useAuthStore } from '../../store/authStore';
 import { Button } from '../../components/ui/Button';
 import { LanguageSwitcher } from '../../components/layout/LanguageSwitcher';
 import { ThemeSwitcher } from '../../components/layout/ThemeSwitcher';
@@ -12,27 +11,33 @@ import {
   FiEyeOff, 
   FiArrowRight,
   FiArrowLeft,
-  FiAlertCircle
+  FiAlertCircle,
+  FiUser,
+  FiPhone,
+  FiBriefcase,
+  FiCheck
 } from 'react-icons/fi';
 
 // API Base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
-type LoginStep = 'credentials' | 'otp';
+type SignupStep = 'form' | 'otp' | 'success';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const authStore = useAuthStore();
   const [isVisible, setIsVisible] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState<LoginStep>('credentials');
+  const [step, setStep] = useState<SignupStep>('form');
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
+    username: '',
     email: '',
     password: '',
+    phone_no: '',
+    business_name: '',
   });
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -51,8 +56,14 @@ export default function LoginPage() {
     }
   }, [formData, otp]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const validateCredentials = () => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    
+    if (!formData.username) {
+      newErrors.username = 'Username is required';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters';
+    }
     
     if (!formData.email) {
       newErrors.email = t('validation.required');
@@ -66,26 +77,33 @@ export default function LoginPage() {
       newErrors.password = t('validation.minLength').replace('{0}', '6');
     }
     
+    if (!formData.phone_no) {
+      newErrors.phone_no = 'Phone number is required';
+    } else if (!/^[0-9]{10}$/.test(formData.phone_no)) {
+      newErrors.phone_no = 'Please enter a valid 10-digit phone number';
+    }
+    
+    if (!formData.business_name) {
+      newErrors.business_name = 'Business name is required';
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCredentialsSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateCredentials()) return;
+    if (!validateForm()) return;
     
     setIsLoading(true);
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/login/`, {
+      const response = await fetch(`${API_BASE_URL}/signup/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify(formData),
       });
       
       const data = await response.json();
@@ -95,7 +113,18 @@ export default function LoginPage() {
         setStep('otp');
         setOtp(['', '', '', '', '', '']);
       } else {
-        setApiError(data.error || data.message || 'Login failed');
+        // Handle Django validation errors
+        let errorMessage = 'Signup failed';
+        if (data.error) {
+          errorMessage = data.error;
+        } else if (data.username) {
+          errorMessage = data.username[0];
+        } else if (data.email) {
+          errorMessage = data.email[0];
+        } else if (data.password) {
+          errorMessage = data.password[0];
+        }
+        setApiError(errorMessage);
       }
     } catch (err) {
       setApiError('Network error. Please try again.');
@@ -155,7 +184,7 @@ export default function LoginPage() {
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/verify-login-otp/`, {
+      const response = await fetch(`${API_BASE_URL}/verify-signup-otp/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,24 +196,11 @@ export default function LoginPage() {
       const data = await response.json();
       
       if (response.ok) {
-        // Store tokens in localStorage
-        if (data.access) {
-          localStorage.setItem('auth_token', data.access);
-        }
-        if (data.refresh) {
-          localStorage.setItem('refresh_token', data.refresh);
-        }
-        
-        // Update auth store and navigate
-        authStore.updateUserProfile({
-          name: formData.email.split('@')[0],
-          email: formData.email,
-          phone: '',
-          photo: null,
-        });
-        authStore.login();
-        authStore.completeOnboarding();
-        navigate('/dashboard');
+        // Show success and redirect to login
+        setStep('success');
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
       } else {
         setApiError(data.error || 'OTP verification failed');
       }
@@ -200,13 +216,10 @@ export default function LoginPage() {
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/login/`, {
+      const response = await fetch(`${API_BASE_URL}/signup/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify(formData),
       });
       
       const data = await response.json();
@@ -224,8 +237,8 @@ export default function LoginPage() {
     }
   };
 
-  const goBackToCredentials = () => {
-    setStep('credentials');
+  const goBackToForm = () => {
+    setStep('form');
     setOtp(['', '', '', '', '', '']);
     setApiError(null);
   };
@@ -252,28 +265,53 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-xl p-5 sm:p-6 lg:p-8 border border-gray-200 dark:border-gray-700">
-          {step === 'credentials' ? (
+          {step === 'form' && (
             <>
-              <div className="text-center mb-5 sm:mb-6 lg:mb-8">
+              <div className="text-center mb-5 sm:mb-6">
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1.5 sm:mb-2">
-                  {t('login.title')}
+                  Create Account
                 </h2>
                 <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
-                  {t('login.subtitle')}
+                  Fill in your details to get started
                 </p>
               </div>
 
               {/* API Error Display */}
               {apiError && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                  <FiAlertCircle className="w-5 h-5 text-red-500 " />
+                  <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                   <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
                 </div>
               )}
 
-              <form onSubmit={handleCredentialsSubmit} className="space-y-4 sm:space-y-5">
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                {/* Username */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <FiUser className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      placeholder="johndoe"
+                      className={`w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
+                        errors.username 
+                          ? 'border-red-500 focus:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
+                      } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
+                    />
+                  </div>
+                  {errors.username && (
+                    <p className="text-red-500 text-xs mt-1">{errors.username}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                     {t('profile.email')}
                   </label>
                   <div className="relative">
@@ -283,7 +321,7 @@ export default function LoginPage() {
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="your@email.com"
-                      className={`w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-3.5 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
+                      className={`w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
                         errors.email 
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
@@ -291,12 +329,61 @@ export default function LoginPage() {
                     />
                   </div>
                   {errors.email && (
-                    <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.email}</p>
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
                   )}
                 </div>
 
+                {/* Phone */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <FiPhone className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                    <input
+                      type="tel"
+                      value={formData.phone_no}
+                      onChange={(e) => setFormData({ ...formData, phone_no: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      placeholder="98XXXXXXXX"
+                      className={`w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
+                        errors.phone_no 
+                          ? 'border-red-500 focus:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
+                      } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
+                    />
+                  </div>
+                  {errors.phone_no && (
+                    <p className="text-red-500 text-xs mt-1">{errors.phone_no}</p>
+                  )}
+                </div>
+
+                {/* Business Name */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                    Business Name
+                  </label>
+                  <div className="relative">
+                    <FiBriefcase className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={formData.business_name}
+                      onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                      placeholder="My Business"
+                      className={`w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
+                        errors.business_name 
+                          ? 'border-red-500 focus:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
+                      } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
+                    />
+                  </div>
+                  {errors.business_name && (
+                    <p className="text-red-500 text-xs mt-1">{errors.business_name}</p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                     {t('login.password')}
                   </label>
                   <div className="relative">
@@ -306,7 +393,7 @@ export default function LoginPage() {
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder="••••••••"
-                      className={`w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-3 sm:py-3.5 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
+                      className={`w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg sm:rounded-xl border-2 ${
                         errors.password 
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
@@ -321,21 +408,8 @@ export default function LoginPage() {
                     </button>
                   </div>
                   {errors.password && (
-                    <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.password}</p>
+                    <p className="text-red-500 text-xs mt-1">{errors.password}</p>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer">
-                    <input type="checkbox" className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                    <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t('login.rememberMe')}</span>
-                  </label>
-                  <Link 
-                    to="/forgot-password"
-                    className="text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                  >
-                    {t('login.forgotPassword')}
-                  </Link>
                 </div>
 
                 <Button
@@ -347,38 +421,40 @@ export default function LoginPage() {
                     <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      {t('login.submit')}
+                      Create Account
                       <FiArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </>
                   )}
                 </Button>
               </form>
 
-              <div className="mt-6 sm:mt-8 text-center">
+              <div className="mt-6 text-center">
                 <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
-                  {t('login.noAccount')}{' '}
+                  Already have an account?{' '}
                   <Link 
-                    to="/welcome"
+                    to="/login"
                     className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                   >
-                    {t('login.signUp')}
+                    Login
                   </Link>
                 </p>
               </div>
             </>
-          ) : (
+          )}
+
+          {step === 'otp' && (
             <>
               {/* OTP Verification Step */}
               <div className="text-center mb-5 sm:mb-6 lg:mb-8">
                 <button
-                  onClick={goBackToCredentials}
+                  onClick={goBackToForm}
                   className="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
                 >
                   <FiArrowLeft className="w-4 h-4" />
                   <span className="text-sm">Back</span>
                 </button>
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1.5 sm:mb-2">
-                  Verify OTP
+                  Verify Email
                 </h2>
                 <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                   Enter the 6-digit code sent to <br />
@@ -389,7 +465,7 @@ export default function LoginPage() {
               {/* API Error Display */}
               {apiError && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                  <FiAlertCircle className="w-5 h-5 text-red-500" />
+                  <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                   <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
                 </div>
               )}
@@ -422,7 +498,7 @@ export default function LoginPage() {
                     <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      Verify & Login
+                      Verify Email
                       <FiArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </>
                   )}
@@ -444,12 +520,29 @@ export default function LoginPage() {
               </form>
             </>
           )}
+
+          {step === 'success' && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FiCheck className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" />
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Account Created!
+              </h2>
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mb-4">
+                Your account has been verified successfully.
+              </p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Redirecting to login...
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Info message */}
         <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg sm:rounded-xl">
           <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-200 text-center">
-            <span className="font-semibold">Note:</span> OTP will be sent to your registered email address
+            <span className="font-semibold">Note:</span> OTP will be sent to your email address for verification
           </p>
         </div>
       </div>

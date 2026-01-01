@@ -66,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         lg:translate-x-0
       `}>
         {/* Header with close button on mobile */}
-        <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
           <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
             Pasale
           </h1>
@@ -104,7 +104,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           })}
         </nav>
 
-        <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700">
+        {/* Logout button - fixed at bottom with safe area padding */}
+        <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700 shrink-0 pb-safe mb-4 sm:mb-0">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200"

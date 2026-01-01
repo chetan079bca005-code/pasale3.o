@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -17,10 +17,25 @@ import {
   FiLayers,
   FiCheck,
   FiBarChart2,
-  FiShoppingBag
+  FiShoppingBag,
+  FiLoader
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 import { useTranslation } from '../../utils/i18n';
+
+// API Configuration - Use environment variable or fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+interface ApiCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+const getAuthToken = () => {
+  // Check for auth_token (set by login page)
+  return localStorage.getItem('auth_token');
+};
 
 interface Product {
   id: string;
@@ -40,6 +55,26 @@ interface AddProductDialogProps {
   initialData?: Product;
   isEdit?: boolean;
 }
+
+// Category icon mapping
+const getCategoryIcon = (categoryName: string): string => {
+  const iconMap: Record<string, string> = {
+    'electronics': '📱',
+    'clothing': '👕',
+    'food': '🍎',
+    'grocery': '🛒',
+    'household': '🏠',
+    'beauty': '💄',
+    'medicine': '💊',
+    'stationery': '📝',
+    'hardware': '🔧',
+  };
+  const key = categoryName.toLowerCase();
+  for (const [name, icon] of Object.entries(iconMap)) {
+    if (key.includes(name)) return icon;
+  }
+  return '📦';
+};
 
 export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   onClose,
@@ -72,19 +107,37 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'inventory' | 'additional'>('basic');
+  const [categories, setCategories] = useState<Array<{ value: string; label: string; icon: string; id: number }>>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
-  const categories = [
-    { value: 'electronics', label: 'Electronics', icon: '📱' },
-    { value: 'clothing', label: 'Clothing & Apparel', icon: '👕' },
-    { value: 'food', label: 'Food & Beverages', icon: '🍎' },
-    { value: 'grocery', label: 'Grocery', icon: '🛒' },
-    { value: 'household', label: 'Household Items', icon: '🏠' },
-    { value: 'beauty', label: 'Beauty & Personal Care', icon: '💄' },
-    { value: 'medicine', label: 'Medicine & Health', icon: '💊' },
-    { value: 'stationery', label: 'Stationery', icon: '📝' },
-    { value: 'hardware', label: 'Hardware & Tools', icon: '🔧' },
-    { value: 'other', label: 'Other', icon: '📦' },
-  ];
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoadingCategories(true);
+      try {
+        // For now, use default categories since backend might not have category endpoint
+        // When backend has category API, replace with actual fetch
+        const defaultCategories = [
+          { id: 1, value: 'electronics', label: 'Electronics', icon: '📱' },
+          { id: 2, value: 'clothing', label: 'Clothing & Apparel', icon: '👕' },
+          { id: 3, value: 'food', label: 'Food & Beverages', icon: '🍎' },
+          { id: 4, value: 'grocery', label: 'Grocery', icon: '🛒' },
+          { id: 5, value: 'household', label: 'Household Items', icon: '🏠' },
+          { id: 6, value: 'beauty', label: 'Beauty & Personal Care', icon: '💄' },
+          { id: 7, value: 'medicine', label: 'Medicine & Health', icon: '💊' },
+          { id: 8, value: 'stationery', label: 'Stationery', icon: '📝' },
+          { id: 9, value: 'hardware', label: 'Hardware & Tools', icon: '🔧' },
+          { id: 10, value: 'other', label: 'Other', icon: '📦' },
+        ];
+        setCategories(defaultCategories);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const units = [
     { value: 'piece', label: 'Piece (pcs)' },
@@ -150,26 +203,71 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
       return;
     }
 
+    if (!formData.category) {
+      setError('Please select a category');
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        throw new Error('Please login to add products');
+      }
+      
+      // Find category ID from selected category value
+      const selectedCategory = categories.find(cat => cat.value === formData.category);
+      
+      // Prepare API payload matching backend serializer
+      const apiPayload = {
+        product_name: formData.name.trim(),
+        category: selectedCategory?.id || 1, // Backend expects category ID
+        sku: formData.sku || `SKU-${Date.now()}`,
+        product_Img: formData.image || '',
+        unit_price: parseFloat(formData.price),
+        quantity: parseInt(formData.quantity),
+        description: formData.description || '',
+      };
 
-    const productData = {
-      name: formData.name.trim(),
-      quantity: parseInt(formData.quantity),
-      price: parseFloat(formData.price),
-      image: formData.image,
-      sku: formData.sku || undefined,
-      description: formData.description || undefined,
-      category: formData.category || undefined,
-    };
+      const response = await fetch(`${API_BASE_URL}/products/`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(apiPayload),
+      });
 
-    onSave(productData);
-    setSuccess(true);
-    setTimeout(() => {
-      onClose();
-    }, 1000);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to save product');
+      }
+
+      // Transform form data to frontend format for onSave callback
+      const productData = {
+        name: formData.name.trim(),
+        quantity: parseInt(formData.quantity),
+        price: parseFloat(formData.price),
+        image: formData.image,
+        sku: formData.sku || `SKU-${Date.now()}`,
+        description: formData.description || undefined,
+        category: formData.category || undefined,
+      };
+
+      onSave(productData);
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      console.error('Error saving product:', err);
+      setError(err.message || 'Failed to save product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const profitInfo = calculateProfit();

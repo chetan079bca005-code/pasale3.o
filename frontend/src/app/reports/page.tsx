@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
+import { useDataStore } from '../../store/dataStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PageHeader } from '../../components/layout/PageHeader';
+import { exportToWord, exportToExcel, exportToPDF } from '../../utils/exportUtils';
 import {
   FiFileText,
   FiPackage,
@@ -143,97 +146,84 @@ export default function ReportsPage() {
     window.print();
   };
 
-  // Export handlers with actual PDF generation
-  const handleDownload = (format: 'pdf' | 'excel' | 'csv') => {
-    const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Business_Report';
-    const filename = `${reportName?.replace(/\s+/g, '_')}_${dateRange.startDate}_to_${dateRange.endDate}`;
+  const getReportSummary = (type: ReportType | null) => {
+    let summaryCards: any[] = [];
+    let chartTitle = '';
 
-    if (format === 'pdf') {
-      // Generate PDF using HTML content
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        const reportTitle = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : t('businessReport') || 'Business Report';
-        const reportDesc = selectedReport ? reportCards.find(c => c.id === selectedReport)?.description : '';
+    switch (type) {
+      case 'profit_loss':
+        summaryCards = [
+          { label: t('reports.totalRevenue'), value: 524000, icon: FiTrendingUp, color: 'from-blue-500 to-blue-600', change: '+15.3%' },
+          { label: t('reports.totalExpenses'), value: 342000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+8.2%' },
+          { label: t('reports.grossProfit'), value: 182000, icon: NepaliRupeeIcon, color: 'from-emerald-500 to-emerald-600', change: '+22.1%' },
+          { label: t('reports.netMargin'), value: '34.7%', icon: FiPercent, color: 'from-purple-500 to-purple-600', change: '+2.4%', isCurrency: false },
+        ];
+        chartTitle = t('reports.revenueVsExpenses');
+        break;
+      case 'sales':
+        summaryCards = [
+          { label: t('reports.totalSales'), value: 450000, icon: FiShoppingCart, color: 'from-blue-500 to-blue-600', change: '+22.1%' },
+          { label: t('reports.orderCount'), value: 324, icon: FiBox, color: 'from-emerald-500 to-emerald-600', change: '+18', isCurrency: false },
+          { label: t('reports.avgOrderValue'), value: 1389, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+5.2%' },
+          { label: t('reports.topCategory'), value: 'Electronics', icon: FiAward, color: 'from-amber-500 to-amber-600', change: '45%', isCurrency: false },
+        ];
+        chartTitle = t('reports.salesTrend');
+        break;
+      case 'expenses':
+        summaryCards = [
+          { label: t('reports.totalExpenses'), value: 268000, icon: FiCreditCard, color: 'from-red-500 to-red-600', change: '-5.4%' },
+          { label: t('reports.operatingCosts'), value: 145000, icon: FiActivity, color: 'from-orange-500 to-orange-600', change: '-3.2%' },
+          { label: t('reports.purchases'), value: 98000, icon: FiTruck, color: 'from-blue-500 to-blue-600', change: '-8.1%' },
+          { label: t('reports.otherExpenses'), value: 25000, icon: FiFileText, color: 'from-purple-500 to-purple-600', change: '+2.5%' },
+        ];
+        chartTitle = t('reports.expenseBreakdown');
+        break;
+      case 'inventory':
+        summaryCards = [
+          { label: t('reports.totalStockValue'), value: 1250000, icon: FiPackage, color: 'from-teal-500 to-teal-600', change: '+6.8%' },
+          { label: t('reports.totalItems'), value: 456, icon: FiBox, color: 'from-blue-500 to-blue-600', change: '+24', isCurrency: false },
+          { label: t('reports.lowStockItems'), value: 12, icon: FiActivity, color: 'from-amber-500 to-amber-600', change: '-3', isCurrency: false },
+          { label: t('reports.outOfStock'), value: 5, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+2', isCurrency: false },
+        ];
+        chartTitle = t('reports.inventoryAnalysis');
+        break;
+      default:
+        summaryCards = [
+          { label: t('reports.totalRevenue'), value: 524000, icon: FiBarChart2, color: 'from-blue-500 to-blue-600', change: '+12.5%' },
+          { label: t('reports.grossProfit'), value: 182000, icon: FiActivity, color: 'from-emerald-500 to-emerald-600', change: '+8.3%' },
+          { label: t('reports.totalExpenses'), value: 268000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '-5.4%' },
+          { label: t('reports.netMargin'), value: '34.7%', icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+2.1%', isCurrency: false },
+        ];
+        chartTitle = t('reports.overview') || 'Business Overview';
+    }
+    return { summaryCards, chartTitle };
+  };
 
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${filename}</title>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1f2937; max-width: 800px; margin: 0 auto; }
-              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #7c3aed; }
-              .header h1 { font-size: 24px; color: #1f2937; margin-bottom: 8px; }
-              .header p { color: #6b7280; font-size: 14px; }
-              .date-range { background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-              .section { margin-bottom: 30px; }
-              .section h2 { font-size: 18px; color: #374151; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-              .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
-              .stat-card { padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #7c3aed; }
-              .stat-card .value { font-size: 24px; font-weight: 700; color: #1f2937; }
-              .stat-card .label { font-size: 12px; color: #6b7280; margin-bottom: 5px; }
-              .stat-card .change { font-size: 11px; color: #10b981; }
-              .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
-              @media print { body { padding: 20px; } }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>📊 ${reportTitle}</h1>
-              <p>${reportDesc}</p>
-            </div>
-            <div class="date-range">
-              <strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}
-            </div>
-            <div class="section">
-              <h2>Summary</h2>
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="label">Total Revenue</div>
-                  <div class="value">${c(450000)}</div>
-                  <div class="change">+22.1% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Net Profit</div>
-                  <div class="value">${c(182000)}</div>
-                  <div class="change">+12.5% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Total Expenses</div>
-                  <div class="value">${c(268000)}</div>
-                  <div class="change">-5.4% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Cash Flow</div>
-                  <div class="value">${c(524000)}</div>
-                  <div class="change">+15.3% from last period</div>
-                </div>
-              </div>
-            </div>
-            <div class="footer">
-              <p>Generated on ${new Date().toLocaleDateString()} | Pasale Business Management</p>
-            </div>
-          </body>
-          </html>
-        `);
-        printWindow.document.close();
+  // Export handlers - using exportUtils library
+  const handleDownload = (format: 'word' | 'excel' | 'pdf') => {
+    const reportTitle = selectedReport ? reportCards.find(card => card.id === selectedReport)?.title : 'Business Report';
+    const { summaryCards, chartTitle } = getReportSummary(selectedReport);
 
-        // Trigger print dialog for PDF
-        setTimeout(() => {
-          printWindow.print();
-        }, 250);
-      }
-    } else {
-      // For Excel/CSV - create downloadable file
-      const csvContent = `Report: ${reportName}\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nMetric,Value,Change\nTotal Revenue,450000,+22.1%\nNet Profit,182000,+12.5%\nTotal Expenses,268000,-5.4%\nCash Flow,524000,+15.3%`;
-      const blob = new Blob([csvContent], { type: format === 'csv' ? 'text/csv' : 'application/vnd.ms-excel' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${filename}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+    // Format stats for export - fix: properly format currency values
+    const formattedStats = summaryCards.map(card => ({
+      label: card.label,
+      value: card.isCurrency === false ? String(card.value) : c(typeof card.value === 'number' ? card.value : 0),
+      change: card.change
+    }));
+
+    const reportData = {
+      title: reportTitle || 'Report',
+      dateRange: dateRange,
+      stats: formattedStats,
+      chartTitle: chartTitle,
+    };
+
+    if (format === 'word') {
+      exportToWord(reportData);
+    } else if (format === 'excel') {
+      exportToExcel(reportData);
+    } else if (format === 'pdf') {
+      exportToPDF(reportData);
     }
   };
 
@@ -259,12 +249,24 @@ export default function ReportsPage() {
     }
   };
 
-  // Email handler
-  const handleEmail = () => {
-    const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Report';
-    const subject = encodeURIComponent(`${reportName} - ${dateRange.startDate} to ${dateRange.endDate}`);
-    const body = encodeURIComponent(`Please find the ${reportName} attached.\n\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nGenerated from Pasale`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  // Email handler - Generate downloadable report before sending
+  const handleEmail = async () => {
+    try {
+      const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Report';
+      const subject = encodeURIComponent(`${reportName} - ${dateRange.startDate} to ${dateRange.endDate}`);
+      const body = encodeURIComponent(`Please find the attached ${reportName} report.\n\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nGenerated from Pasale Business Management\n${new Date().toLocaleDateString()}`);
+      
+      // Open email client
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      
+      // Also trigger download of PDF for reference
+      setTimeout(() => {
+        handleDownload('pdf');
+      }, 500);
+    } catch (error) {
+      console.error('Error opening email:', error);
+      alert('Please open your email client manually to send the report.');
+    }
   };
 
   const pieData = [
@@ -338,54 +340,7 @@ export default function ReportsPage() {
   };
 
   const renderReportContent = () => {
-    let summaryCards = [];
-    let chartTitle = '';
-
-    switch (selectedReport) {
-      case 'profit_loss':
-        summaryCards = [
-          { label: t('reports.totalRevenue'), value: 524000, icon: FiTrendingUp, color: 'from-blue-500 to-blue-600', change: '+15.3%' },
-          { label: t('reports.totalExpenses'), value: 342000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+8.2%' },
-          { label: t('reports.grossProfit'), value: 182000, icon: NepaliRupeeIcon, color: 'from-emerald-500 to-emerald-600', change: '+22.1%' },
-          { label: t('reports.netMargin'), value: '34.7%', icon: FiPercent, color: 'from-purple-500 to-purple-600', change: '+2.4%', isCurrency: false },
-        ];
-        chartTitle = t('reports.revenueVsExpenses');
-        break;
-      case 'sales':
-        summaryCards = [
-          { label: t('reports.totalSales'), value: 450000, icon: FiShoppingCart, color: 'from-blue-500 to-blue-600', change: '+22.1%' },
-          { label: t('reports.orderCount'), value: 324, icon: FiBox, color: 'from-emerald-500 to-emerald-600', change: '+18', isCurrency: false },
-          { label: t('reports.avgOrderValue'), value: 1389, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+5.2%' },
-          { label: t('reports.topCategory'), value: 'Electronics', icon: FiAward, color: 'from-amber-500 to-amber-600', change: '45%', isCurrency: false },
-        ];
-        chartTitle = t('reports.salesTrend');
-        break;
-      case 'expenses':
-        summaryCards = [
-          { label: t('reports.totalExpenses'), value: 268000, icon: FiCreditCard, color: 'from-red-500 to-red-600', change: '-5.4%' },
-          { label: t('reports.operatingCosts'), value: 145000, icon: FiActivity, color: 'from-orange-500 to-orange-600', change: '-3.2%' },
-          { label: t('reports.purchases'), value: 98000, icon: FiTruck, color: 'from-blue-500 to-blue-600', change: '-8.1%' },
-          { label: t('reports.otherExpenses'), value: 25000, icon: FiFileText, color: 'from-purple-500 to-purple-600', change: '+2.5%' },
-        ];
-        chartTitle = t('reports.expenseBreakdown');
-        break;
-      case 'inventory':
-        summaryCards = [
-          { label: t('reports.totalStockValue'), value: 1250000, icon: FiPackage, color: 'from-teal-500 to-teal-600', change: '+6.8%' },
-          { label: t('reports.totalItems'), value: 456, icon: FiBox, color: 'from-blue-500 to-blue-600', change: '+24', isCurrency: false },
-          { label: t('reports.lowStockItems'), value: 12, icon: FiActivity, color: 'from-amber-500 to-amber-600', change: '-3', isCurrency: false },
-          { label: t('reports.outOfStock'), value: 5, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+2', isCurrency: false },
-        ];
-        chartTitle = t('reports.inventoryAnalysis');
-        break;
-      default:
-        summaryCards = [
-          { label: t('reports.metric1'), value: 100000, icon: FiBarChart2, color: 'from-blue-500 to-blue-600', change: '+10%' },
-          { label: t('reports.metric2'), value: 50000, icon: FiActivity, color: 'from-emerald-500 to-emerald-600', change: '+5%' },
-          { label: t('reports.metric3'), value: 25000, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+15%' },
-        ];
-        chartTitle = t('reports.analysis');
-    }
+    const { summaryCards, chartTitle } = getReportSummary(selectedReport);
 
     return (
       <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -442,7 +397,7 @@ export default function ReportsPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-1.5 sm:gap-2 shrink-0">
+              <div className="flex gap-1.5 sm:gap-2 shrink-0 flex-wrap sm:flex-nowrap">
                 <Button
                   variant="outline"
                   className="sm:hidden"
@@ -455,9 +410,34 @@ export default function ReportsPage() {
                 <Button variant="outline" onClick={handlePrint} size="sm" className="sm:size-auto" title={t('reports.print') || 'Print'}>
                   <FiPrinter className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" onClick={() => handleDownload('pdf')} size="sm" className="sm:size-auto" title={t('reports.download') || 'Download'}>
-                  <FiDownload className="w-4 h-4" />
-                </Button>
+
+                {/* Download Dropdown */}
+                <div className="relative group">
+                  <Button variant="outline" size="sm" className="sm:size-auto" title={t('reports.download') || 'Download'}>
+                    <FiDownload className="w-4 h-4" />
+                  </Button>
+                  <div className="absolute right-0 mt-0 w-40 bg-white dark:bg-gray-800 shadow-lg rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <button
+                      onClick={() => handleDownload('word')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 first:rounded-t-lg border-b border-gray-200 dark:border-gray-700"
+                    >
+                      Word (.docx)
+                    </button>
+                    <button
+                      onClick={() => handleDownload('excel')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30 border-b border-gray-200 dark:border-gray-700"
+                    >
+                      Excel (.xlsx)
+                    </button>
+                    <button
+                      onClick={() => handleDownload('pdf')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-red-900/30 last:rounded-b-lg"
+                    >
+                      PDF
+                    </button>
+                  </div>
+                </div>
+
                 <Button variant="outline" size="sm" className="sm:size-auto" onClick={handleShare} title={t('reports.share') || 'Share'}>
                   <FiShare2 className="w-4 h-4" />
                 </Button>
@@ -704,25 +684,28 @@ export default function ReportsPage() {
       <div className="max-w-1600px mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
         {selectedReport ? (
           <>
-            {/* Report Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <Button
-                variant="ghost"
-                onClick={() => setSelectedReport(null)}
-                className="hover:bg-white dark:hover:bg-gray-800 self-start"
-                size="sm"
-              >
-                <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-                <span className="text-sm">{t('reports.backToDashboard')}</span>
-              </Button>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {reportCards.find(c => c.id === selectedReport)?.title}
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-0.5 sm:mt-1 truncate">
-                  {reportCards.find(c => c.id === selectedReport)?.description}
-                </p>
-              </div>
+            {/* Report Header - Using PageHeader Component */}
+            <div className="mb-4 sm:mb-6">
+              {(() => {
+                const report = reportCards.find(c => c.id === selectedReport);
+                const Icon = report?.icon;
+                return (
+                  <PageHeader
+                    title={report?.title || 'Report'}
+                    subtitle={report?.description}
+                    icon={Icon ? <Icon className="w-full h-full" /> : undefined}
+                    actions={
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSelectedReport(null)}
+                        size="sm"
+                      >
+                        <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </Button>
+                    }
+                  />
+                );
+              })()}
             </div>
             {renderReportContent()}
           </>

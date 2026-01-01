@@ -31,12 +31,12 @@ export default function DashboardLayout() {
         <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
         
         <main
-          className={`pt-16 sm:pt-18 lg:pt-20 flex-1 w-full ${
+          className={`pt-16 sm:pt-18 lg:pt-20 flex-1 w-full pb-20 sm:pb-6 ${
             isDashboard ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'
           }`}
         >
-          {/* Responsive container with max-width for large screens */}
-          <div className="w-full max-w-1600px mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 h-full">
+          {/* Responsive container with max-width for large screens - added safe bottom padding for mobile */}
+          <div className="w-full max-w-1600px mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 h-full pb-safe">
             <Outlet />
           </div>
         </main>

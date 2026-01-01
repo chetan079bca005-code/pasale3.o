@@ -9,6 +9,7 @@ interface UserProfile {
   phone: string;
   photo: string | null;
   panNumber?: string;
+  businessName?: string;
 }
 
 interface AuthState {

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 // Types
 export interface Transaction {
   id: string;
-  type: 'purchase' | 'selling' | 'expense';
+  type: 'purchase' | 'selling' | 'expense' | 'payment_in' | 'payment_out' | 'quotation' | 'sales_return' | 'purchase_return' | 'income';
   amount: number;
   date: string;
   description: string;
@@ -91,60 +91,10 @@ const getStoredData = (): Partial<DataState> => {
 };
 
 const initialState = {
-  transactions: [
-    {
-      id: '1',
-      type: 'selling' as const,
-      amount: 5000,
-      date: new Date().toISOString(),
-      description: 'Product Sale',
-      partyName: 'ABC Store',
-    },
-    {
-      id: '2',
-      type: 'purchase' as const,
-      amount: 3000,
-      date: new Date().toISOString(),
-      description: 'Raw Materials',
-      partyName: 'XYZ Suppliers',
-    },
-  ],
-  parties: [
-    {
-      id: '1',
-      name: 'ABC Store',
-      type: 'customer' as const,
-      phone: '9812345678',
-      balance: 5000,
-    },
-    {
-      id: '2',
-      name: 'XYZ Suppliers',
-      type: 'supplier' as const,
-      phone: '9812345679',
-      balance: -3000,
-    },
-  ],
-  expenses: [
-    {
-      id: '1',
-      category: 'Office Supplies',
-      amount: 500,
-      date: new Date().toISOString(),
-      description: 'Stationery',
-      isNecessary: true,
-    },
-  ],
-  notifications: [
-    {
-      id: '1',
-      title: 'Low Stock Alert',
-      message: 'Wireless Mouse is running low (2 units remaining)',
-      type: 'warning' as const,
-      date: new Date().toISOString(),
-      read: false,
-    },
-  ],
+  transactions: [],
+  parties: [],
+  expenses: [],
+  notifications: [],
 };
 
 const storedData = getStoredData();
@@ -154,7 +104,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   parties: storedData.parties || initialState.parties,
   expenses: storedData.expenses || initialState.expenses,
   notifications: storedData.notifications || initialState.notifications,
-  
+
   addTransaction: (transaction) => {
     set((state) => {
       const newState = {
@@ -172,7 +122,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       }
       return newState;
     });
-    
+
     // Add notification for new transaction
     get().addNotification({
       title: 'New Transaction',
@@ -218,7 +168,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   addParty: (party) => {
     set((state) => {
       const newState = {
@@ -236,7 +186,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   updateParty: (party) => {
     set((state) => {
       const newState = {
@@ -254,7 +204,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   addExpense: (expense) => {
     set((state) => {
       const newState = {
@@ -272,7 +222,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   addNotification: (notification) => {
     const newNotification: Notification = {
       ...notification,
@@ -296,7 +246,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   markNotificationAsRead: (id) => {
     set((state) => {
       const newState = {
@@ -316,7 +266,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   dismissNotification: (id) => {
     set((state) => {
       const newState = {
@@ -334,28 +284,28 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newState;
     });
   },
-  
+
   getTotalSales: () => {
     const state = get();
     return state.transactions
       .filter((t) => t.type === 'selling')
       .reduce((sum, t) => sum + t.amount, 0);
   },
-  
+
   getTotalReceivable: () => {
     const state = get();
     return state.parties
       .filter((p) => p.balance > 0)
       .reduce((sum, p) => sum + p.balance, 0);
   },
-  
+
   getTotalPayable: () => {
     const state = get();
     return state.parties
       .filter((p) => p.balance < 0)
       .reduce((sum, p) => sum + Math.abs(p.balance), 0);
   },
-  
+
   getCashInHand: () => {
     const state = get();
     const sales = state.getTotalSales();
@@ -365,28 +315,28 @@ export const useDataStore = create<DataState>((set, get) => ({
     const expenses = state.expenses.reduce((sum, e) => sum + e.amount, 0);
     return sales - purchases - expenses;
   },
-  
+
   getMonthlyExpenses: () => {
     const state = get();
-    const months = ['Baisakh', 'Jestha', 'Ashadh', 'Shrawan', 'Bhadra', 'Aswin', 
-                    'Kartik', 'Mangsir', 'Poush', 'Magh', 'Falgun', 'Chaitra'];
+    const months = ['Baisakh', 'Jestha', 'Ashadh', 'Shrawan', 'Bhadra', 'Aswin',
+      'Kartik', 'Mangsir', 'Poush', 'Magh', 'Falgun', 'Chaitra'];
     const currentMonth = new Date().getMonth();
-    
+
     return months.slice(0, currentMonth + 1).map((month, index) => {
       const monthExpenses = state.expenses.filter((e) => {
         const expenseDate = new Date(e.date);
         return expenseDate.getMonth() === index;
       });
-      
+
       const monthIncome = state.transactions
         .filter((t) => {
           const transDate = new Date(t.date);
           return transDate.getMonth() === index && t.type === 'selling';
         })
         .reduce((sum, t) => sum + t.amount, 0);
-      
+
       const monthExpense = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
-      
+
       return {
         month,
         income: monthIncome,

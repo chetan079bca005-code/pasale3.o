@@ -30,9 +30,9 @@ interface AddNewDialogProps {
   onClose: () => void;
 }
 
-type DialogType = 'purchase' | 'selling' | 'expense' | null;
+type DialogType = 'purchase' | 'selling' | 'expense' | 'payment_in' | 'payment_out' | 'quotation' | 'sales_return' | 'purchase_return' | 'income' | null;
 type PaymentStatus = 'paid' | 'partial' | 'unpaid';
-type PaymentMethod = 'cash' | 'bank' | 'credit' | 'upi';
+type PaymentMethod = 'cash' | 'bank' | 'credit' | 'upi' | 'cheque' | 'online';
 
 interface TransactionItem {
   id: string;
@@ -100,6 +100,21 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
   const [isRecurring, setIsRecurring] = useState(false);
   const [vendor, setVendor] = useState('');
   const [receiptNumber, setReceiptNumber] = useState('');
+
+  // Payment In/Out form state
+  const [paymentPartyId, setPaymentPartyId] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentType, setPaymentType] = useState<PaymentMethod>('cash');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+
+  // Income form state
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeCategory, setIncomeCategory] = useState('');
+  const [incomeDescription, setIncomeDescription] = useState('');
+  const [incomeDate, setIncomeDate] = useState(new Date().toISOString().split('T')[0]);
+  const [incomeSource, setIncomeSource] = useState('');
 
   // Calculate totals
   const calculateItemTotal = (item: TransactionItem) => {
@@ -279,8 +294,8 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
   // Type Selection Screen
   if (!dialogType) {
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-        <Card className="w-full max-w-lg p-8 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200 overflow-y-auto">
+        <Card className="w-full max-w-2xl p-8 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 my-8">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
@@ -292,77 +307,190 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors shrink-0"
             >
               <FiX className="w-6 h-6" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <button
-              onClick={() => setDialogType('purchase')}
-              className="group flex items-center gap-4 p-5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
-            >
-              <div className="w-14 h-14 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <FiShoppingCart className="w-7 h-7 text-white" />
-              </div>
-              <div className="text-left flex-1">
-                <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
-                  {t('addNew.purchase')}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('sidebar.recordPurchase')}
-                </p>
-              </div>
-              <div className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                <FiPlus className="w-6 h-6" />
-              </div>
-            </button>
+          <div className="grid grid-cols-1 gap-3">
+            {/* Core Transactions */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Core Transactions</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setDialogType('purchase')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiShoppingCart className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Purchase
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Record purchases from suppliers
+                    </p>
+                  </div>
+                </button>
 
-            <button
-              onClick={() => setDialogType('selling')}
-              className="group flex items-center gap-4 p-5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
-            >
-              <div className="w-14 h-14 bg-linear-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <FiTrendingUp className="w-7 h-7 text-white" />
-              </div>
-              <div className="text-left flex-1">
-                <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
-                  {t('addNew.sale')}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('sidebar.recordSale')}
-                </p>
-              </div>
-              <div className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                <FiPlus className="w-6 h-6" />
-              </div>
-            </button>
+                <button
+                  onClick={() => setDialogType('selling')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiTrendingUp className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Sales
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Record sales to customers
+                    </p>
+                  </div>
+                </button>
 
-            <button
-              onClick={() => setDialogType('expense')}
-              className="group flex items-center gap-4 p-5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-red-500 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
-            >
-              <div className="w-14 h-14 bg-linear-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <FiTrendingDown className="w-7 h-7 text-white" />
+                <button
+                  onClick={() => setDialogType('expense')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-red-500 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiTrendingDown className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Expense
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Record business expenses
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setDialogType('income')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiTrendingUp className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Income
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Record other income
+                    </p>
+                  </div>
+                </button>
               </div>
-              <div className="text-left flex-1">
-                <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
-                  {t('addNew.expense')}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('sidebar.recordExpense')}
-                </p>
+            </div>
+
+            {/* Payments */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-3">Payments</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setDialogType('payment_in')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-emerald-500 dark:hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiCreditCard className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Payment In
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Money received from customers
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setDialogType('payment_out')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-orange-500 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiCreditCard className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Payment Out
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Money paid to suppliers
+                    </p>
+                  </div>
+                </button>
               </div>
-              <div className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                <FiPlus className="w-6 h-6" />
+            </div>
+
+            {/* Other Documents */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-3">Other Documents</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setDialogType('quotation')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-cyan-500 dark:hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiFileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Quotation
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Create price quotes
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setDialogType('sales_return')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-pink-500 dark:hover:border-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiPackage className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Sales Return
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Process returned sales
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setDialogType('purchase_return')}
+                  className="group flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all hover:scale-[1.02] hover:shadow-lg"
+                >
+                  <div className="w-12 h-12 bg-linear-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform shrink-0">
+                    <FiPackage className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
+                      Purchase Return
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Process returned purchases
+                    </p>
+                  </div>
+                </button>
               </div>
-            </button>
+            </div>
           </div>
         </Card>
       </div>
     );
   }
+
+
 
   // Expense Form
   if (dialogType === 'expense') {
@@ -581,7 +709,505 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
     );
   }
 
-  // Purchase/Sale Form
+  // Payment In/Out Form
+  if (dialogType === 'payment_in' || dialogType === 'payment_out') {
+    const isPaymentIn = dialogType === 'payment_in';
+    const colorTheme = isPaymentIn ? 'emerald' : 'orange';
+    const filteredParties = parties.filter((p) => p.type === (isPaymentIn ? 'customer' : 'supplier'));
+
+    const handlePaymentSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!paymentPartyId || !paymentAmount) {
+        setError('Please fill in all required fields');
+        return;
+      }
+
+      const selectedParty = parties.find((p) => p.id === paymentPartyId);
+      addTransaction({
+        id: Date.now().toString(),
+        type: isPaymentIn ? 'payment_in' : 'payment_out',
+        amount: parseFloat(paymentAmount),
+        date: new Date(paymentDate).toISOString(),
+        description: `Payment ${isPaymentIn ? 'received from' : 'made to'} ${selectedParty?.name}`,
+        partyId: paymentPartyId,
+        partyName: selectedParty?.name,
+      });
+
+      setSuccess(true);
+      setTimeout(() => onClose(), 1000);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <Card className="w-full max-w-2xl p-0 max-h-[90vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className={`bg-linear-to-r ${isPaymentIn ? 'from-emerald-500 to-emerald-600' : 'from-orange-500 to-orange-600'} p-6 text-white`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <FiCreditCard className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    {isPaymentIn ? 'Payment In' : 'Payment Out'}
+                  </h2>
+                  <p className={`${isPaymentIn ? 'text-emerald-100' : 'text-orange-100'} text-sm`}>
+                    {isPaymentIn ? 'Record money received from customers' : 'Record money paid to suppliers'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={resetForm} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {success && (
+            <div className="m-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 flex items-center gap-3">
+              <FiCheckCircle className="w-5 h-5" />
+              <span className="font-medium">Payment recorded successfully!</span>
+            </div>
+          )}
+
+          <form onSubmit={handlePaymentSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+            {/* Party Selection */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                <FiUser className="w-4 h-4 inline mr-2" />
+                {isPaymentIn ? 'Customer' : 'Supplier'} *
+              </label>
+              <select
+                value={paymentPartyId}
+                onChange={(e) => setPaymentPartyId(e.target.value)}
+                className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a party</option>
+                {filteredParties.map((party) => (
+                  <option key={party.id} value={party.id}>
+                    {party.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Amount, Date, and Method */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Amount *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold">रु.</span>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiCalendar className="w-4 h-4 inline mr-2" />
+                  Date *
+                </label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiCreditCard className="w-4 h-4 inline mr-2" />
+                  Method
+                </label>
+                <select
+                  value={paymentType}
+                  onChange={(e) => setPaymentType(e.target.value as PaymentMethod)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="online">Online</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Reference and Notes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiHash className="w-4 h-4 inline mr-2" />
+                  Reference Number
+                </label>
+                <input
+                  type="text"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., CHQ-001"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  📝 Notes
+                </label>
+                <input
+                  type="text"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 flex items-center gap-3">
+                <FiAlertCircle className="w-5 h-5" />
+                {error}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Button
+                type="submit"
+                className={`flex-1 bg-linear-to-r ${isPaymentIn ? 'from-emerald-500 to-emerald-600' : 'from-orange-500 to-orange-600'} text-white font-bold py-3`}
+              >
+                <FiPlus className="w-5 h-5 mr-2" />
+                Record Payment
+              </Button>
+              <Button type="button" variant="outline" onClick={resetForm} className="px-6">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  // Income Form
+  if (dialogType === 'income') {
+    const handleIncomeSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!incomeAmount || !incomeCategory) {
+        setError('Please fill in all required fields');
+        return;
+      }
+
+      addTransaction({
+        id: Date.now().toString(),
+        type: 'income',
+        amount: parseFloat(incomeAmount),
+        date: new Date(incomeDate).toISOString(),
+        description: incomeDescription || `Income from ${incomeSource || incomeCategory}`,
+      });
+
+      setSuccess(true);
+      setTimeout(() => onClose(), 1000);
+    };
+
+    const incomeCategories = ['Interest', 'Rent', 'Commission', 'Royalty', 'Dividends', 'Service Fee', 'Other'];
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <Card className="w-full max-w-2xl p-0 max-h-[90vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className="bg-linear-to-r from-purple-500 to-purple-600 p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <FiTrendingUp className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">Record Income</h2>
+                  <p className="text-purple-100 text-sm">Record other income sources</p>
+                </div>
+              </div>
+              <button onClick={resetForm} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {success && (
+            <div className="m-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 flex items-center gap-3">
+              <FiCheckCircle className="w-5 h-5" />
+              <span className="font-medium">Income recorded successfully!</span>
+            </div>
+          )}
+
+          <form onSubmit={handleIncomeSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+                <FiTag className="w-4 h-4 inline mr-2" />
+                Category *
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {incomeCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setIncomeCategory(cat)}
+                    className={`p-3 rounded-xl border-2 text-center transition-all text-sm font-medium ${
+                      incomeCategory === cat
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-purple-300'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Amount and Date */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Amount *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold">रु.</span>
+                  <input
+                    type="number"
+                    value={incomeAmount}
+                    onChange={(e) => setIncomeAmount(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiCalendar className="w-4 h-4 inline mr-2" />
+                  Date *
+                </label>
+                <input
+                  type="date"
+                  value={incomeDate}
+                  onChange={(e) => setIncomeDate(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Source and Description */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Source
+                </label>
+                <input
+                  type="text"
+                  value={incomeSource}
+                  onChange={(e) => setIncomeSource(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="e.g., XYZ Company"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  📝 Description
+                </label>
+                <input
+                  type="text"
+                  value={incomeDescription}
+                  onChange={(e) => setIncomeDescription(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Additional details"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 flex items-center gap-3">
+                <FiAlertCircle className="w-5 h-5" />
+                {error}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Button
+                type="submit"
+                className="flex-1 bg-linear-to-r from-purple-500 to-purple-600 text-white font-bold py-3"
+              >
+                <FiPlus className="w-5 h-5 mr-2" />
+                Record Income
+              </Button>
+              <Button type="button" variant="outline" onClick={resetForm} className="px-6">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  // Quotation, Sales Return, Purchase Return - Simplified versions using similar form structure
+  if (dialogType === 'quotation' || dialogType === 'sales_return' || dialogType === 'purchase_return') {
+    const isPurchaseReturn = dialogType === 'purchase_return';
+    const isSalesReturn = dialogType === 'sales_return';
+    const isQuotation = dialogType === 'quotation';
+    
+    const getConfig = () => {
+      if (isQuotation) return { title: 'Create Quotation', color: 'cyan', icon: FiFileText };
+      if (isSalesReturn) return { title: 'Sales Return', color: 'pink', icon: FiPackage };
+      return { title: 'Purchase Return', color: 'indigo', icon: FiPackage };
+    };
+
+    const config = getConfig();
+    const colorMap: Record<string, string> = {
+      cyan: 'from-cyan-500 to-cyan-600',
+      pink: 'from-pink-500 to-pink-600',
+      indigo: 'from-indigo-500 to-indigo-600',
+    };
+    const focusRing: Record<string, string> = {
+      cyan: 'focus:ring-cyan-500',
+      pink: 'focus:ring-pink-500',
+      indigo: 'focus:ring-indigo-500',
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <Card className="w-full max-w-4xl p-0 max-h-[95vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className={`bg-linear-to-r ${colorMap[config.color]} p-6 text-white`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <config.icon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{config.title}</h2>
+                  <p className="text-white/80 text-sm">Fill in the details below</p>
+                </div>
+              </div>
+              <button onClick={resetForm} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {success && (
+            <div className="m-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 flex items-center gap-3">
+              <FiCheckCircle className="w-5 h-5" />
+              <span className="font-medium">{config.title} created successfully!</span>
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSuccess(true);
+              setTimeout(() => onClose(), 1000);
+            }}
+            className="p-6 space-y-6 overflow-y-auto max-h-[calc(95vh-180px)]"
+          >
+            {/* Party Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiUser className="w-4 h-4 inline mr-2" />
+                  {isQuotation || isSalesReturn ? 'Customer' : 'Supplier'} *
+                </label>
+                <select
+                  className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 outline-none ${focusRing[config.color]} ring-2 ring-offset-0`}
+                  required
+                >
+                  <option value="">Select a party</option>
+                  {parties
+                    .filter((p) => {
+                      if (isQuotation || isSalesReturn) return p.type === 'customer';
+                      return p.type === 'supplier';
+                    })
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  <FiCalendar className="w-4 h-4 inline mr-2" />
+                  Date *
+                </label>
+                <input
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 outline-none ${focusRing[config.color]} ring-2 ring-offset-0`}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Amount */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                Amount *
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold">रु.</span>
+                <input
+                  type="number"
+                  className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 outline-none ${focusRing[config.color]} ring-2 ring-offset-0`}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                📝 Description
+              </label>
+              <textarea
+                className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-0 resize-none"
+                rows={3}
+                placeholder="Add details..."
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Button
+                type="submit"
+                className={`flex-1 bg-linear-to-r ${colorMap[config.color]} text-white font-bold py-3`}
+              >
+                <FiPlus className="w-5 h-5 mr-2" />
+                {config.title}
+              </Button>
+              <Button type="button" variant="outline" onClick={resetForm} className="px-6">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
   const isPurchase = dialogType === 'purchase';
   const colorTheme = isPurchase ? 'blue' : 'green';
   const filteredParties = parties.filter((p) => p.type === (isPurchase ? 'supplier' : 'customer'));

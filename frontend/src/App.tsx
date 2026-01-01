@@ -7,6 +7,7 @@ import { LoadingScreen } from './components/layout/LoadingScreen';
 // Pages
 import WelcomePage from './app/welcome/page';
 import LoginPage from './app/login/page';
+import SignupPage from './app/signup/page';
 import ForgotPasswordPage from './app/forgot-password/page';
 import BusinessTypePage from './app/business-type/page';
 import PersonalVerificationPage from './app/personal-verification/page';
@@ -26,6 +27,7 @@ import KPIDetailPage from './app/dashboard/kpi/[type]/page';
 import TransactionDetailPage from './app/transactions/detail';
 import TodaysSalesPage from './app/dashboard/todays-sales/page';
 import LedgerPage from './app/ledger/[partyId]/page';
+import PartyDetailPage from './app/parties/[partyId]/page';
 import ProfilePage from './app/profile/page';
 
 // Route Guards - Public routes (welcome, login, forgot-password)
@@ -71,6 +73,7 @@ function App() {
         <Route element={<PublicRoute />}>
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
 
@@ -88,6 +91,7 @@ function App() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/transactions/:id" element={<TransactionDetailPage />} />
             <Route path="/parties" element={<PartiesPage />} />
+            <Route path="/parties/:partyId" element={<PartyDetailPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/expense-monitoring" element={<ExpenseMonitoringPage />} />
             <Route path="/settings" element={<SettingsPage />} />

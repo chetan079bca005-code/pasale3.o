@@ -138,21 +138,23 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             </span>
           </div>
 
-          {/* Add New Button */}
-          <Button
-            className="hidden sm:flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-shadow text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2"
-            onClick={() => setShowAddNew(true)}
-          >
-            <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="font-semibold hidden md:inline">{t('addNew.title')}</span>
-          </Button>
-          <Button
-            size="icon"
-            className="flex sm:hidden shadow-sm p-1.5"
-            onClick={() => setShowAddNew(true)}
-          >
-            <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Button>
+          {/* Add New Button with Dropdown */}
+          <div className="relative group">
+            <Button
+              className="hidden sm:flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-shadow text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2"
+              onClick={() => setShowAddNew(true)}
+            >
+              <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="font-semibold hidden md:inline">{t('addNew.title')}</span>
+            </Button>
+            <Button
+              size="icon"
+              className="flex sm:hidden shadow-sm p-1.5"
+              onClick={() => setShowAddNew(true)}
+            >
+              <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+            </Button>
+          </div>
 
           {/* Divider */}
           <div className="hidden md:block w-px h-6 sm:h-8 bg-gray-200 dark:bg-gray-700 mx-0.5 sm:mx-1"></div>

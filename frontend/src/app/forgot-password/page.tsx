@@ -12,8 +12,12 @@ import {
   FiArrowLeft,
   FiPhone,
   FiCheck,
-  FiRefreshCw
+  FiRefreshCw,
+  FiAlertCircle
 } from 'react-icons/fi';
+
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 type Step = 'request' | 'verify' | 'reset' | 'success';
 
@@ -27,6 +31,7 @@ export default function ForgotPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [apiError, setApiError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -49,6 +54,13 @@ export default function ForgotPasswordPage() {
       return () => clearTimeout(timer);
     }
   }, [resendTimer]);
+
+  // Clear API error when form data changes
+  useEffect(() => {
+    if (apiError) {
+      setApiError(null);
+    }
+  }, [formData.email, formData.phone, formData.otp, formData.newPassword, formData.confirmPassword]);
 
   const validateRequest = () => {
     const newErrors: Record<string, string> = {};
@@ -106,38 +118,126 @@ export default function ForgotPasswordPage() {
     if (!validateRequest()) return;
     
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setResendTimer(60);
-    setStep('verify');
+    setApiError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/forgot-password/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: method === 'email' ? formData.email : undefined,
+          phone: method === 'phone' ? formData.phone : undefined,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setResendTimer(60);
+        setStep('verify');
+      } else {
+        setApiError(data.message || data.error || 'Failed to send OTP. Please try again.');
+      }
+    } catch (error) {
+      setApiError('Network error. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerifyOTP = async () => {
     if (!validateOTP()) return;
     
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setStep('reset');
+    setApiError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/verify-reset-otp/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: method === 'email' ? formData.email : undefined,
+          phone: method === 'phone' ? formData.phone : undefined,
+          otp: formData.otp.join(''),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setStep('reset');
+      } else {
+        setApiError(data.message || data.error || 'Invalid OTP. Please try again.');
+      }
+    } catch (error) {
+      setApiError('Network error. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResetPassword = async () => {
     if (!validatePassword()) return;
     
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setStep('success');
+    setApiError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/reset-password/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: method === 'email' ? formData.email : undefined,
+          phone: method === 'phone' ? formData.phone : undefined,
+          otp: formData.otp.join(''),
+          new_password: formData.newPassword,
+          confirm_password: formData.confirmPassword,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setStep('success');
+      } else {
+        setApiError(data.message || data.error || 'Failed to reset password. Please try again.');
+      }
+    } catch (error) {
+      setApiError('Network error. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResendOTP = async () => {
     if (resendTimer > 0) return;
     
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setResendTimer(60);
-    setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+    setApiError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/forgot-password/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: method === 'email' ? formData.email : undefined,
+          phone: method === 'phone' ? formData.phone : undefined,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setResendTimer(60);
+        setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+      } else {
+        setApiError(data.message || data.error || 'Failed to resend OTP. Please try again.');
+      }
+    } catch (error) {
+      setApiError('Network error. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -254,6 +354,14 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
                 {errors.phone && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.phone}</p>}
+              </div>
+            )}
+
+            {/* API Error Display */}
+            {apiError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+                <FiAlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
               </div>
             )}
 

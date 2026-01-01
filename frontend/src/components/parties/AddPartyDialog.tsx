@@ -359,40 +359,12 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                 </div>
 
-                {/* Customer: Date of Birth and Anniversary */}
-                {isCustomer && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                        <FiCalendar className="w-4 h-4 inline mr-2" />
-                        {t('dateOfBirth')}
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.dateOfBirth}
-                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                        className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                        <FiCalendar className="w-4 h-4 inline mr-2" />
-                        {t('anniversary')}
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.anniversary}
-                        onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })}
-                        className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                )}
+               
 
                 {/* Supplier: GST and PAN */}
                 {!isCustomer && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                         <FiFileText className="w-4 h-4 inline mr-2" />
                         {t('gstNumber')}
@@ -404,7 +376,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                         className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="GST Number"
                       />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                         <FiFileText className="w-4 h-4 inline mr-2" />
@@ -421,7 +393,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                 )}
 
-                {/* Address */}
+                {/* Address
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                     <FiMapPin className="w-4 h-4 inline mr-2" />
@@ -434,7 +406,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                     rows={2}
                     placeholder={t('enterAddress')}
                   />
-                </div>
+                </div> */}
 
                 {/* City, State, Pincode */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

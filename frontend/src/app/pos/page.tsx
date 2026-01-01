@@ -5,7 +5,10 @@ import { Button } from '../../components/ui/Button';
 import { BarcodeScanner } from '../../components/scanner/BarcodeScanner';
 import { useDataStore } from '../../store/dataStore';
 import { useTranslation } from '../../utils/i18n';
-import { FiPackage, FiShoppingCart, FiTrash2, FiUser, FiPrinter, FiCheck } from 'react-icons/fi';
+import { FiPackage, FiShoppingCart, FiTrash2, FiUser, FiPrinter, FiCheck, FiLoader } from 'react-icons/fi';
+
+// API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
 interface ScannedProduct {
   barcode: string;
@@ -15,19 +18,14 @@ interface ScannedProduct {
   total: number;
 }
 
-// Sample product database with barcodes
-const PRODUCT_DATABASE: Record<string, { name: string; price: number; stock: number }> = {
-  '8901234567890': { name: 'Laptop Dell Inspiron 15', price: 65000, stock: 10 },
-  '5901234123457': { name: 'Wireless Mouse Logitech', price: 1500, stock: 25 },
-  '9876543210123': { name: 'USB-C Cable 2m', price: 500, stock: 50 },
-  '1234567890128': { name: 'Monitor LG 24" FHD', price: 18000, stock: 8 },
-  '7891011121314': { name: 'Keyboard Mechanical RGB', price: 4500, stock: 15 },
-  '4561237890123': { name: 'Webcam HD 1080p', price: 3200, stock: 12 },
-  '7654321098765': { name: 'Headphones Wireless', price: 2800, stock: 20 },
-  '3216549870123': { name: 'Power Bank 20000mAh', price: 2500, stock: 30 },
-  '9517534862013': { name: 'External HDD 1TB', price: 5500, stock: 18 },
-  '1592637480123': { name: 'Gaming Mousepad XL', price: 800, stock: 40 },
-};
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  sku?: string;
+  barcode?: string;
+}
 
 export default function POSPage() {
   const navigate = useNavigate();
@@ -38,6 +36,10 @@ export default function POSPage() {
   const [scannedProducts, setScannedProducts] = useState<ScannedProduct[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [lastScannedBarcode, setLastScannedBarcode] = useState('');
+  
+  // Products from API
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   const customers = parties.filter((p) => p.type === 'customer');
 
@@ -45,6 +47,50 @@ export default function POSPage() {
   const subtotal = scannedProducts.reduce((sum, item) => sum + item.total, 0);
   const tax = subtotal * 0.13; // 13% VAT
   const grandTotal = subtotal + tax;
+
+  // Get auth token
+  const getAuthToken = () => {
+    return localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+  };
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    setProductsLoading(true);
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/products/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const apiProducts = data.results || data || [];
+        const transformedProducts: Product[] = apiProducts.map((p: any) => ({
+          id: String(p.id),
+          name: p.product_name,
+          price: parseFloat(p.unit_price),
+          quantity: p.quantity,
+          sku: p.sku || `SKU-${p.id}`,
+          barcode: p.barcode || p.sku || '',
+        }));
+        setProducts(transformedProducts);
+      }
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Fetch products on mount
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // Auto-focus scanner on page load
   useEffect(() => {
@@ -59,10 +105,13 @@ export default function POSPage() {
   }, [showScanner]);
 
   const handleBarcodeScanned = (barcode: string) => {
-    const productInfo = PRODUCT_DATABASE[barcode];
+    // Search for product by barcode or SKU in the products from API
+    const productInfo = products.find(
+      (p) => p.barcode === barcode || p.sku === barcode || p.id === barcode
+    );
 
     if (!productInfo) {
-      alert(t('pos.productNotFound'));
+      alert(`Product with barcode ${barcode} not found. Please add the product to inventory first.`);
       return;
     }
 

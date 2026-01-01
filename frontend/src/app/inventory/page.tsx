@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
 import { Button } from '../../components/ui/Button';
@@ -29,9 +29,18 @@ import {
   FiMoreVertical,
   FiShoppingCart,
   FiArchive,
+  FiLoader,
 } from 'react-icons/fi';
 import { AddProductDialog } from '../../components/inventory/AddProductDialog';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
+
+// API Configuration - Use environment variable or fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+const getAuthToken = () => {
+  // Check for auth_token (set by login page)
+  return localStorage.getItem('auth_token');
+};
 
 interface Product {
   id: string;
@@ -61,19 +70,107 @@ interface StockMovement {
 type ViewMode = 'grid' | 'table';
 
 export default function InventoryPage() {
-  const { t, n, c, language } = useTranslation(); const navigate = useNavigate(); const [products, setProducts] = useState<Product[]>([
-    { id: '1', name: 'Wireless Mouse', quantity: 25, price: 1500, costPrice: 1000, image: null, sku: 'SKU-001', description: 'Ergonomic wireless mouse with USB receiver', category: 'Electronics', status: 'active', minStock: 5, unit: 'pcs' },
-    { id: '2', name: 'USB-C Cable', quantity: 50, price: 500, costPrice: 300, image: null, sku: 'SKU-002', description: 'Fast charging USB-C cable 1m', category: 'Accessories', status: 'active', minStock: 10, unit: 'pcs' },
-    { id: '3', name: 'Laptop Stand', quantity: 3, price: 3500, costPrice: 2500, image: null, sku: 'SKU-003', description: 'Adjustable aluminum laptop stand', category: 'Accessories', status: 'active', minStock: 5, unit: 'pcs' },
-    { id: '4', name: 'Webcam HD', quantity: 12, price: 4500, costPrice: 3200, image: null, sku: 'SKU-004', description: '1080p HD webcam with microphone', category: 'Electronics', status: 'active', minStock: 3, unit: 'pcs' },
-    { id: '5', name: 'Keyboard Wireless', quantity: 0, price: 2500, costPrice: 1800, image: null, sku: 'SKU-005', description: 'Wireless keyboard with Bluetooth', category: 'Electronics', status: 'inactive', minStock: 5, unit: 'pcs' },
-  ]);
+  const { t, n, c, language } = useTranslation(); 
+  const navigate = useNavigate(); 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [movements, setMovements] = useState<StockMovement[]>([
-    { id: 'm1', productId: '1', date: new Date().toISOString(), change: 25, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-    { id: 'm2', productId: '2', date: new Date().toISOString(), change: 50, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-    { id: 'm3', productId: '3', date: new Date().toISOString(), change: 3, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-  ]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+
+  // Check for auth token on mount
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      // No token, redirect to login
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const token = getAuthToken();
+      
+      console.log('Auth token:', token ? 'Found' : 'Not found'); // Debug log
+      
+      if (!token) {
+        setError('Please login to view products');
+        setIsLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/products/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('API Response status:', response.status); // Debug log
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Clear invalid token and redirect to login
+          localStorage.removeItem('auth_token');
+          navigate('/login');
+          return;
+        } else {
+          throw new Error('Failed to fetch products');
+        }
+      }
+      
+      const data = await response.json();
+      const apiProducts = data.results || data || [];
+      
+      // Transform API response to frontend format
+      const transformedProducts: Product[] = apiProducts.map((p: any) => ({
+        id: String(p.id),
+        name: p.product_name,
+        quantity: p.quantity,
+        price: parseFloat(p.unit_price),
+        costPrice: parseFloat(p.unit_price) * 0.7, // Estimate cost price
+        image: p.product_Img || null,
+        sku: p.sku || `SKU-${p.id}`,
+        description: p.description || '',
+        category: getCategoryName(p.category),
+        status: p.quantity > 0 ? 'active' : 'inactive',
+        minStock: 10, // Default reorder level
+        unit: 'pcs',
+      }));
+      
+      setProducts(transformedProducts);
+    } catch (err: any) {
+      console.error('Error fetching products:', err);
+      setError(err.message || 'Failed to load products. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Map category ID to name
+  const getCategoryName = (categoryId: number): string => {
+    const categoryMap: Record<number, string> = {
+      1: 'Electronics',
+      2: 'Clothing',
+      3: 'Food',
+      4: 'Grocery',
+      5: 'Household',
+      6: 'Beauty',
+      7: 'Medicine',
+      8: 'Stationery',
+      9: 'Hardware',
+      10: 'Other',
+    };
+    return categoryMap[categoryId] || 'Uncategorized';
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrValue, setQrValue] = useState('');
@@ -144,29 +241,44 @@ export default function InventoryPage() {
     setShowForm(true);
   };
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'status'>) => {
-    if (isEditing && editingId) {
-      setProducts(products.map(p => p.id === editingId ? { ...p, ...productData, category: productData.category || 'Uncategorized' } : p));
-    } else {
-      const newProduct: Product = {
-        id: Date.now().toString(),
-        ...productData,
-        category: productData.category || 'Uncategorized',
-        sku: productData.sku || `SKU-${Date.now()}`,
-        status: 'active',
-      };
-      setProducts([...products, newProduct]);
-      setMovements((prev) => [
-        { id: `m-${Date.now()}`, productId: newProduct.id, date: new Date().toISOString(), change: newProduct.quantity, notes: 'New product added', staff: 'Admin', type: 'in' },
-        ...prev,
-      ]);
-    }
+  const handleSaveProduct = async (productData: Omit<Product, 'id' | 'status'>) => {
+    // Refresh products from API after successful save
+    await fetchProducts();
     setShowForm(false);
     setIsEditing(false);
     setEditingId(null);
   };
 
-  const handleAdjustStockSubmit = (e: React.FormEvent) => {
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        alert('Please login to delete products');
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/products/?id=${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        await fetchProducts();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete product');
+      }
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      alert('Failed to delete product. Please try again.');
+    }
+    setSelectedProductId(null);
+  };
+
+  const handleAdjustStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId || !adjustData.change) return;
 
@@ -176,16 +288,43 @@ export default function InventoryPage() {
     if (adjustData.type === 'out') changeAmount = -Math.abs(changeAmount);
     else changeAmount = Math.abs(changeAmount);
 
-    setProducts(products.map(p =>
-      p.id === selectedProductId
-        ? { ...p, quantity: Math.max(0, p.quantity + changeAmount) }
-        : p
-    ));
-
-    setMovements((prev) => [
-      { id: `m-${Date.now()}`, productId: selectedProductId, date: new Date().toISOString(), change: changeAmount, notes: adjustData.notes || 'Manual adjustment', staff: 'Admin', type: adjustData.type },
-      ...prev,
-    ]);
+    // Find the product and calculate new quantity
+    const product = products.find(p => p.id === selectedProductId);
+    if (!product) return;
+    
+    const newQuantity = Math.max(0, product.quantity + changeAmount);
+    
+    // Update via API
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        alert('Please login to adjust stock');
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/products/?id=${selectedProductId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ quantity: newQuantity }),
+      });
+      
+      if (response.ok) {
+        await fetchProducts(); // Refresh from API
+        setMovements((prev) => [
+          { id: `m-${Date.now()}`, productId: selectedProductId, date: new Date().toISOString(), change: changeAmount, notes: adjustData.notes || 'Manual adjustment', staff: 'Admin', type: adjustData.type },
+          ...prev,
+        ]);
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to adjust stock');
+      }
+    } catch (err) {
+      console.error('Error adjusting stock:', err);
+      alert('Failed to adjust stock. Please try again.');
+    }
 
     setAdjustData({ change: '', notes: '', type: 'in' });
     setShowAdjustStock(false);
@@ -259,6 +398,16 @@ export default function InventoryPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => fetchProducts()}
+              className="border-2 hover:border-blue-500 hover:text-blue-600 transition-all text-xs sm:text-sm"
+              disabled={isLoading}
+            >
+              <FiRefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isLoading ? 'Loading...' : 'Refresh'}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowQRModal(true)}
               className="border-2 hover:border-purple-500 hover:text-purple-600 transition-all text-xs sm:text-sm"
             >
@@ -277,6 +426,41 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* Loading State */}
+        {isLoading && products.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <FiLoader className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 text-lg">Loading products...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <Card className="p-6 mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-red-600">
+                <FiAlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">{error}</h3>
+                <p className="text-sm text-red-600 dark:text-red-400">Please try refreshing or check your connection.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchProducts()}
+                className="ml-auto border-red-200 dark:border-red-700 text-red-600"
+              >
+                <FiRefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Main Content - Only show when not loading */}
+        {!isLoading && !error && (
+          <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <KPICard
             title={t('inventory.totalProducts')}
@@ -822,6 +1006,8 @@ export default function InventoryPage() {
               </div>
             </Card>
           </div>
+        )}
+        </>
         )}
 
         {/* Adjust Stock Modal */}

@@ -142,7 +142,7 @@ export default function KPIDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-4 pb-6 sm:pb-8">
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
+      <div className="max-w-1600px mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
         {/* Header - Interactive Style */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3 sm:gap-4">

@@ -133,17 +133,15 @@ export const InvoiceDetail: React.FC<InvoiceDetailProps> = ({ invoice, onClose, 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-4 bg-gray-50 dark:bg-gray-800/50">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Client Information</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Name: {currentInvoice.partyName || 'N/A'}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Email: contact@example.com</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Phone: +977-1-XXXXXXX</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Address: Kathmandu, Nepal</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Name: {currentInvoice.partyName || 'Walk-in Customer'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Invoice ID: {currentInvoice.id}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Date: {new Date(currentInvoice.date).toLocaleDateString()}</p>
             </Card>
             <Card className="p-4 bg-gray-50 dark:bg-gray-800/50">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Your Business</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Name: Your Company</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Email: info@yourcompany.com</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Phone: +977-1-XXXXXXX</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Address: Kathmandu, Nepal</p>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Invoice Summary</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Items: {items.length}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Amount: {formatCurrency(currentInvoice.amount, language)}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Status: {getInvoiceStatus()}</p>
             </Card>
           </div>
 

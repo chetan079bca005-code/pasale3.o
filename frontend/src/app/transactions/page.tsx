@@ -489,45 +489,45 @@ export default function TransactionsPage() {
                 return (
                   <div
                     key={transaction.id}
-                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
+                    className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
                       {/* Icon */}
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${transaction.type === 'selling'
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${transaction.type === 'selling'
                         ? 'bg-linear-to-br from-emerald-400 to-emerald-600 text-white'
                         : transaction.type === 'purchase'
                           ? 'bg-linear-to-br from-blue-400 to-blue-600 text-white'
                           : 'bg-linear-to-br from-red-400 to-red-600 text-white'
                         }`}>
                         {transaction.type === 'selling' ? (
-                          <FiArrowUpRight className="w-6 h-6" />
+                          <FiArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6" />
                         ) : transaction.type === 'purchase' ? (
-                          <FiArrowDownLeft className="w-6 h-6" />
+                          <FiArrowDownLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                         ) : (
-                          <FiCreditCard className="w-6 h-6" />
+                          <FiCreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
                         )}
                       </div>
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
                             {transaction.partyName || transaction.description}
                           </h3>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                          <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(status)}`}>
                             {getStatusIcon(status)}
-                            {status}
+                            <span className="capitalize">{status}</span>
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                           {transaction.description}
                         </p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
+                          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-gray-400">
                             <FiCalendar className="w-3 h-3" />
                             {d(transaction.date)}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full ${transaction.type === 'selling'
+                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${transaction.type === 'selling'
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : transaction.type === 'purchase'
                               ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -535,12 +535,16 @@ export default function TransactionsPage() {
                             }`}>
                             {transaction.type === 'selling' ? t('transactions.sales') : transaction.type === 'purchase' ? t('transactions.purchases') : t('transactions.expenses')}
                           </span>
+                          {/* Mobile status badge */}
+                          <span className={`sm:hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(status)}`}>
+                            {getStatusIcon(status)}
+                          </span>
                         </div>
                       </div>
 
                       {/* Amount */}
-                      <div className="text-right">
-                        <p className={`text-xl font-bold ${transaction.type === 'selling'
+                      <div className="text-right shrink-0">
+                        <p className={`text-base sm:text-lg font-bold ${transaction.type === 'selling'
                           ? 'text-emerald-600 dark:text-emerald-400'
                           : 'text-gray-900 dark:text-gray-100'
                           }`}>
@@ -549,7 +553,7 @@ export default function TransactionsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => navigate(`/transactions/${transaction.id}`)}
                           className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
@@ -572,6 +576,14 @@ export default function TransactionsPage() {
                           <FiMoreVertical className="w-4 h-4" />
                         </button>
                       </div>
+                      
+                      {/* Mobile menu button */}
+                      <button
+                        onClick={(e) => handleMenuClick(e, transaction.id)}
+                        className="sm:hidden p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 transition-colors"
+                      >
+                        <FiMoreVertical className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );
