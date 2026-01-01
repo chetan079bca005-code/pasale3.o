@@ -135,8 +135,7 @@ class Expense(models.Model):
     description = models.TextField(blank=True, null=True)
     date = models.DateField()
     is_necessary = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+   
 
     def __str__(self):
         return self.user.username
