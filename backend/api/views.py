@@ -12,6 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.pagination import PageNumberPagination
 from django.db import transaction
+from .tasks import send_otp_email
 
 # OTP Expiry Time (5 minutes)
 OTP_EXPIRY_TIME = timedelta(minutes=5)
@@ -29,7 +30,7 @@ class SignupView(APIView):
 
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
-        email = request.data.get('email')
+        email = request.data.get('email', '').lower()
         password = request.data.get('password')
         phone_no = request.data.get('phone_no')
         business_name = request.data.get('business_name')
@@ -53,13 +54,7 @@ class SignupView(APIView):
         )
 
         # Send OTP to the user's email
-        send_mail(
-            'Signup OTP Verification',
-            f'Your OTP for signup is {otp}',
-            'sushil@fronbase.com.np',
-            [email],
-            fail_silently=False,
-        )
+        send_otp_email.delay(email, otp)
 
         return Response({'message': 'User created successfully. Please verify the OTP sent to your email.'},
                         status=status.HTTP_201_CREATED)
