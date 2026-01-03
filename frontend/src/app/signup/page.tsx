@@ -63,18 +63,30 @@ export default function SignupPage() {
       newErrors.username = 'Username is required';
     } else if (formData.username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
     }
     
     if (!formData.email) {
       newErrors.email = t('validation.required');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = t('validation.invalidEmail');
+    } else if (!/^[^\s@]+@[^\s@]+\.(com|org|net|edu|gov|io|co|in|uk|us|info)$/i.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email with a recognized domain';
     }
     
     if (!formData.password) {
       newErrors.password = t('validation.required');
-    } else if (formData.password.length < 6) {
-      newErrors.password = t('validation.minLength').replace('{0}', '6');
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/(?=.*[a-z])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one lowercase letter';
+    } else if (!/(?=.*[A-Z])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter';
+    } else if (!/(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one number';
+    } else if (!/(?=.*[!@#$%^&*])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one special character (!@#$%^&*)';
     }
     
     if (!formData.phone_no) {
@@ -85,6 +97,8 @@ export default function SignupPage() {
     
     if (!formData.business_name) {
       newErrors.business_name = 'Business name is required';
+    } else if (formData.business_name.length < 2) {
+      newErrors.business_name = 'Business name must be at least 2 characters';
     }
     
     setErrors(newErrors);

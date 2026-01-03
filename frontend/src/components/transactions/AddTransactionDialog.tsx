@@ -3,12 +3,12 @@ import { useDataStore } from '../../store/dataStore';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { useTranslation } from '../../utils/i18n';
-import { 
-  FiX, 
-  FiUpload, 
-  FiPlus, 
-  FiCalendar, 
-  FiUser, 
+import {
+  FiX,
+  FiUpload,
+  FiPlus,
+  FiCalendar,
+  FiUser,
   FiCreditCard,
   FiFileText,
   FiTag,
@@ -22,21 +22,48 @@ import {
   FiHash
 } from 'react-icons/fi';
 
+export type TransactionMode = 'general' | 'payment_in' | 'payment_out' | 'purchase' | 'sales_return' | 'purchase_return' | 'quotation' | 'expense' | 'income';
+
 interface AddTransactionDialogProps {
   onClose: () => void;
   initialType?: 'selling' | 'purchase' | 'expense';
   initialPartyId?: string;
+  mode?: TransactionMode;
 }
 
 export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
   onClose,
   initialType,
   initialPartyId,
+  mode = 'general',
 }) => {
   const { t } = useTranslation();
   const { parties, addTransaction } = useDataStore();
-  const [type, setType] = useState<'income' | 'expense'>(initialType === 'selling' ? 'income' : 'expense');
-  const [transactionType, setTransactionType] = useState<'selling' | 'purchase' | 'expense'>(initialType || 'selling');
+
+  // Determine initial values based on mode
+  const getInitialType = () => {
+    switch (mode) {
+      case 'payment_in':
+      case 'purchase_return':
+      case 'income':
+        return 'income';
+      case 'payment_out':
+      case 'purchase':
+      case 'sales_return':
+      case 'expense':
+        return 'expense';
+      default:
+        return initialType === 'selling' ? 'income' : 'expense';
+    }
+  };
+
+  const [type, setType] = useState<'income' | 'expense'>(getInitialType());
+  const [transactionType, setTransactionType] = useState<'selling' | 'purchase' | 'expense'>(
+    mode === 'purchase' ? 'purchase' :
+      mode === 'purchase_return' ? 'purchase' :
+        mode === 'sales_return' ? 'selling' :
+          initialType || 'selling'
+  );
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [partyId, setPartyId] = useState(initialPartyId || '');
@@ -108,7 +135,7 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
     if (!validate()) return;
 
     setIsSubmitting(true);
-    
+
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -148,8 +175,20 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                 {type === 'income' ? <FiTrendingUp className="w-5 h-5" /> : <FiTrendingDown className="w-5 h-5" />}
               </div>
               <div>
-                <h2 className="text-xl font-bold">{t('dialog.addTransaction')}</h2>
-                <p className="text-white/80 text-xs mt-0.5">Record a new {type === 'income' ? 'income' : 'expense'} transaction</p>
+                <h2 className="text-xl font-bold">
+                  {mode === 'payment_in' ? 'Payment In' :
+                    mode === 'payment_out' ? 'Payment Out' :
+                      mode === 'quotation' ? 'New Quotation' :
+                        mode === 'sales_return' ? 'Sales Return' :
+                          mode === 'purchase_return' ? 'Purchase Return' :
+                            mode === 'purchase' ? 'New Purchase' :
+                              t('dialog.addTransaction')}
+                </h2>
+                <p className="text-white/80 text-xs mt-0.5">
+                  {mode !== 'general'
+                    ? `Record a new ${mode.replace('_', ' ')}`
+                    : `Record a new ${type === 'income' ? 'income' : 'expense'} transaction`}
+                </p>
               </div>
             </div>
             <button
@@ -172,44 +211,44 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Type Toggle */}
-          <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <button
-              type="button"
-              onClick={() => {
-                setType('income');
-                setTransactionType('selling');
-                setCategory('');
-              }}
-              className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                type === 'income'
+          {/* Type Toggle - Only show for general mode */}
+          {mode === 'general' && (
+            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setType('income');
+                  setTransactionType('selling');
+                  setCategory('');
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${type === 'income'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              <FiTrendingUp className="w-4 h-4" />
-              {t('dialog.income')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setType('expense');
-                setTransactionType('expense');
-                setCategory('');
-              }}
-              className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                type === 'expense'
+                  }`}
+              >
+                <FiTrendingUp className="w-4 h-4" />
+                {t('dialog.income')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setType('expense');
+                  setTransactionType('expense');
+                  setCategory('');
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${type === 'expense'
                   ? 'bg-red-600 text-white shadow-md shadow-red-500/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              <FiTrendingDown className="w-4 h-4" />
-              {t('transactions.expenses')}
-            </button>
-          </div>
+                  }`}
+              >
+                <FiTrendingDown className="w-4 h-4" />
+                {t('transactions.expenses')}
+              </button>
+            </div>
+          )}
 
-          {/* Transaction Sub-Type (for income) */}
-          {type === 'income' && (
+          {/* Transaction Sub-Type (for income) - Only show for general mode */}
+          {type === 'income' && mode === 'general' && (
             <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
               <label className="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                 <FiTag className="w-3.5 h-3.5" />
@@ -219,11 +258,10 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                 <button
                   type="button"
                   onClick={() => setTransactionType('selling')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border-2 transition-all flex items-center justify-center gap-1.5 ${
-                    transactionType === 'selling'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400'
-                  }`}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border-2 transition-all flex items-center justify-center gap-1.5 ${transactionType === 'selling'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                    }`}
                 >
                   <FiShoppingCart className="w-3.5 h-3.5" />
                   {t('dialog.sale')}
@@ -231,11 +269,10 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                 <button
                   type="button"
                   onClick={() => setTransactionType('purchase')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border-2 transition-all flex items-center justify-center gap-1.5 ${
-                    transactionType === 'purchase'
-                      ? 'bg-purple-600 text-white border-purple-600 shadow-md'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-purple-400'
-                  }`}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border-2 transition-all flex items-center justify-center gap-1.5 ${transactionType === 'purchase'
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-purple-400'
+                    }`}
                 >
                   <FiPackage className="w-3.5 h-3.5" />
                   {t('transactions.purchases')}
@@ -261,11 +298,10 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className={`w-full pl-12 pr-3 py-3 rounded-lg border-2 text-xl font-bold ${
-                      errors.amount 
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
-                        : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
-                    } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
+                    className={`w-full pl-12 pr-3 py-3 rounded-lg border-2 text-xl font-bold ${errors.amount
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                      : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
+                      } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
                   />
                 </div>
                 {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
@@ -281,21 +317,26 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className={`w-full px-3 py-2.5 rounded-lg border-2 text-sm ${
-                    errors.date 
-                      ? 'border-red-500' 
-                      : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
-                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
+                  className={`w-full px-3 py-2.5 rounded-lg border-2 text-sm ${errors.date
+                    ? 'border-red-500'
+                    : 'border-gray-200 dark:border-gray-600 focus:border-blue-500'
+                    } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none transition-colors`}
                 />
                 {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
               </div>
 
               {/* Party */}
               <div>
-                <label className="text-xs font-semibold mb-1.5 text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                  <FiUser className="w-3.5 h-3.5" />
-                  {t('dialog.partyOptional')}
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                    <FiUser className="w-3.5 h-3.5" />
+                    {t('dialog.partyOptional')}
+                  </label>
+                  <a href="/parties" className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                    <FiPlus className="w-3 h-3" />
+                    {t('common.add')}
+                  </a>
+                </div>
                 <select
                   value={partyId}
                   onChange={(e) => setPartyId(e.target.value)}
@@ -340,13 +381,12 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                       key={cat.value}
                       type="button"
                       onClick={() => setCategory(cat.value)}
-                      className={`px-2 py-2 rounded-lg text-xs font-medium border-2 transition-all flex items-center gap-1.5 ${
-                        category === cat.value
-                          ? type === 'income'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-red-600 text-white border-red-600'
-                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-400'
-                      }`}
+                      className={`px-2 py-2 rounded-lg text-xs font-medium border-2 transition-all flex items-center gap-1.5 ${category === cat.value
+                        ? type === 'income'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-red-600 text-white border-red-600'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-400'
+                        }`}
                     >
                       <span className="text-sm">{cat.icon}</span>
                       <span className="truncate">{cat.label}</span>
@@ -368,11 +408,10 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
                       key={method.value}
                       type="button"
                       onClick={() => setPaymentMethod(method.value)}
-                      className={`px-2 py-2 rounded-lg text-xs font-medium border-2 transition-all flex items-center gap-1.5 ${
-                        paymentMethod === method.value
-                          ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-800 dark:border-gray-100'
-                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-400'
-                      }`}
+                      className={`px-2 py-2 rounded-lg text-xs font-medium border-2 transition-all flex items-center gap-1.5 ${paymentMethod === method.value
+                        ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-800 dark:border-gray-100'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-400'
+                        }`}
                     >
                       <span className="text-sm">{method.icon}</span>
                       <span className="truncate">{method.label}</span>
@@ -499,16 +538,16 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <Button 
-              type="button" 
-              variant="secondary" 
+            <Button
+              type="button"
+              variant="secondary"
               onClick={onClose}
               className="px-5 py-2.5 text-sm"
               disabled={isSubmitting}
             >
               {t('common.cancel')}
             </Button>
-            <Button 
+            <Button
               type="submit"
               className={`px-6 py-2.5 text-sm ${type === 'income' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white flex items-center gap-2`}
               disabled={isSubmitting}

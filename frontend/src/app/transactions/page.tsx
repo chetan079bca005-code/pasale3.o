@@ -1,85 +1,74 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/dataStore';
 import { useTranslation } from '../../utils/i18n';
-import { formatDate } from '../../utils/nepaliDate';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { KPICard } from '../../components/dashboard/KPICard';
-import { AddTransactionDialog } from '../../components/transactions/AddTransactionDialog';
+import {
+  SalesPurchaseDialog,
+  PaymentDialog,
+  ExpenseIncomeDialog,
+  ReturnDialog,
+  QuotationDialog,
+  TransactionViewDialog,
+  DeleteConfirmDialog,
+  TransactionTable,
+  TransactionType,
+  TRANSACTION_TYPE_CONFIG,
+} from '../../components/transactions';
 import {
   FiTrendingUp,
   FiTrendingDown,
-  FiSearch,
   FiDownload,
   FiFileText,
   FiFilter,
   FiPlus,
   FiCalendar,
   FiChevronDown,
-  FiMoreVertical,
-  FiEye,
-  FiEdit2,
-  FiTrash2,
-  FiPrinter,
   FiCreditCard,
   FiArrowUpRight,
   FiArrowDownLeft,
-  FiCheckCircle,
-  FiClock,
-  FiAlertCircle,
+  FiShoppingCart,
+  FiUser,
+  FiPackage,
+  FiRotateCcw,
+  FiRotateCw,
+  FiDollarSign,
+  FiX,
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
 
-type Tab = 'all' | 'selling' | 'purchase' | 'expense';
-type SortBy = 'date' | 'amount' | 'party';
-type QuickFilter = 'today' | 'week' | 'month' | 'custom';
-type Status = 'paid' | 'pending' | 'overdue';
+type Tab = 'all' | 'sales' | 'purchase' | 'payments' | 'returns' | 'expense';
+type QuickFilter = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 export default function TransactionsPage() {
-  const { t, c, n, d, language } = useTranslation();
-  const { transactions, parties } = useDataStore();
+  const { t, c, n, language } = useTranslation();
+  const { transactions, parties, deleteTransaction } = useDataStore();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // UI State
   const [activeTab, setActiveTab] = useState<Tab>('all');
-  const [selectedPartyId, setSelectedPartyId] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('month');
   const [showFilters, setShowFilters] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [showNewTransactionMenu, setShowNewTransactionMenu] = useState(false);
 
-  // Handle three-dot menu click
-  const handleMenuClick = (e: React.MouseEvent, transactionId: string) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDropdownPosition({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.right - 192 + window.scrollX, // 192px = dropdown width (w-48)
-    });
-    setSelectedTransactionId(transactionId);
-  };
-
-  // Close dropdown when clicking outside
-  const closeDropdown = () => {
-    setSelectedTransactionId(null);
-    setDropdownPosition(null);
-  };
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  // Dialog States
+  const [salesDialog, setSalesDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [purchaseDialog, setPurchaseDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [paymentInDialog, setPaymentInDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [paymentOutDialog, setPaymentOutDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [expenseDialog, setExpenseDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [incomeDialog, setIncomeDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [salesReturnDialog, setSalesReturnDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [purchaseReturnDialog, setPurchaseReturnDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [quotationDialog, setQuotationDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
+  const [viewDialog, setViewDialog] = useState<{ open: boolean; transaction?: any }>({ open: false });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction?: any }>({ open: false });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Quick filter date ranges
   useEffect(() => {
@@ -102,251 +91,380 @@ export default function TransactionsPage() {
         setStartDate(start.toISOString().split('T')[0]);
         setEndDate(today.toISOString().split('T')[0]);
         break;
+      case 'year':
+        start.setMonth(0, 1);
+        setStartDate(start.toISOString().split('T')[0]);
+        setEndDate(today.toISOString().split('T')[0]);
+        break;
       case 'custom':
         break;
     }
   }, [quickFilter]);
 
+  // Filter transactions by tab and date
   const filteredTransactions = useMemo(() => {
-    let filtered = transactions.filter((transaction) => {
-      if (activeTab !== 'all' && transaction.type !== activeTab) return false;
-      if (selectedPartyId && transaction.partyId !== selectedPartyId) return false;
-      if (startDate) {
-        const txDate = new Date(transaction.date);
-        if (txDate < new Date(startDate)) return false;
-      }
-      if (endDate) {
-        const txDate = new Date(transaction.date);
-        const txEnd = new Date(endDate);
-        txEnd.setHours(23, 59, 59);
-        if (txDate > txEnd) return false;
-      }
-      if (debouncedSearch) {
-        const q = debouncedSearch.toLowerCase();
-        if (
-          !transaction.description.toLowerCase().includes(q) &&
-          !(transaction.partyName || '').toLowerCase().includes(q) &&
-          !transaction.amount.toString().includes(debouncedSearch)
-        ) {
-          return false;
-        }
-      }
-      return true;
-    });
+    let filtered = transactions;
 
-    filtered = [...filtered].sort((a, b) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case 'date':
-          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-          break;
-        case 'amount':
-          comparison = a.amount - b.amount;
-          break;
-        case 'party':
-          comparison = (a.partyName || '').localeCompare(b.partyName || '');
-          break;
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
+    // Filter by date
+    if (startDate) {
+      filtered = filtered.filter((t) => new Date(t.date) >= new Date(startDate));
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59);
+      filtered = filtered.filter((t) => new Date(t.date) <= end);
+    }
+
+    // Filter by tab - 'selling' is the dataStore type for sales
+    switch (activeTab) {
+      case 'sales':
+        filtered = filtered.filter((t) => t.type === 'selling');
+        break;
+      case 'purchase':
+        filtered = filtered.filter((t) => t.type === 'purchase');
+        break;
+      case 'payments':
+        filtered = filtered.filter((t) => t.type === 'payment_in' || t.type === 'payment_out');
+        break;
+      case 'returns':
+        filtered = filtered.filter((t) => t.type === 'sales_return' || t.type === 'purchase_return');
+        break;
+      case 'expense':
+        filtered = filtered.filter((t) => t.type === 'expense' || t.type === 'income');
+        break;
+    }
 
     return filtered;
-  }, [transactions, activeTab, selectedPartyId, startDate, endDate, debouncedSearch, sortBy, sortOrder]);
+  }, [transactions, activeTab, startDate, endDate]);
 
+  // Calculate stats
   const stats = useMemo(() => {
     const income = filteredTransactions
-      .filter((t) => t.type === 'selling')
+      .filter((t) => ['selling', 'payment_in', 'income', 'purchase_return'].includes(t.type))
       .reduce((sum, t) => sum + t.amount, 0);
     const expenses = filteredTransactions
-      .filter((t) => t.type === 'purchase' || t.type === 'expense')
+      .filter((t) => ['purchase', 'payment_out', 'expense', 'sales_return'].includes(t.type))
       .reduce((sum, t) => sum + t.amount, 0);
     const balance = income - expenses;
     return { income, expenses, balance, count: filteredTransactions.length };
   }, [filteredTransactions]);
 
+  // Handle export
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    const data = filteredTransactions.map((t) => ({
-      Date: formatDate(t.date, language),
-      Type: t.type,
-      Party: t.partyName || '—',
-      Description: t.description,
-      Amount: t.amount,
-    }));
-    console.log(`Exporting as ${format}:`, data);
-    alert(`${t('transactions.exporting')} ${filteredTransactions.length} ${t('transactions.transactionsAs')} ${format.toUpperCase()}`);
+    // TODO: Implement actual export functionality
+    alert(`Exporting ${filteredTransactions.length} transactions as ${format.toUpperCase()}`);
     setShowExportMenu(false);
   };
 
-  const handleCreateBill = (transaction: typeof transactions[0]) => {
+  // Handle view transaction
+  const handleViewTransaction = useCallback((transaction: any) => {
+    setViewDialog({ open: true, transaction });
+  }, []);
+
+  // Handle edit transaction
+  const handleEditTransaction = useCallback((transaction: any) => {
+    const type = transaction.type;
+    switch (type) {
+      case 'selling':
+      case 'sales':
+        setSalesDialog({ open: true, editData: transaction });
+        break;
+      case 'purchase':
+        setPurchaseDialog({ open: true, editData: transaction });
+        break;
+      case 'payment_in':
+        setPaymentInDialog({ open: true, editData: transaction });
+        break;
+      case 'payment_out':
+        setPaymentOutDialog({ open: true, editData: transaction });
+        break;
+      case 'expense':
+        setExpenseDialog({ open: true, editData: transaction });
+        break;
+      case 'income':
+        setIncomeDialog({ open: true, editData: transaction });
+        break;
+      case 'sales_return':
+        setSalesReturnDialog({ open: true, editData: transaction });
+        break;
+      case 'purchase_return':
+        setPurchaseReturnDialog({ open: true, editData: transaction });
+        break;
+      case 'quotation':
+        setQuotationDialog({ open: true, editData: transaction });
+        break;
+    }
+  }, []);
+
+  // Handle delete transaction
+  const handleDeleteTransaction = useCallback((transaction: any) => {
+    setDeleteDialog({ open: true, transaction });
+  }, []);
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!deleteDialog.transaction) return;
+    setIsDeleting(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      deleteTransaction(deleteDialog.transaction.id);
+      setDeleteDialog({ open: false });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle print / create bill
+  const handlePrintTransaction = useCallback((transaction: any) => {
     if (transaction.partyId) {
       navigate(`/billing?partyId=${transaction.partyId}&transactionId=${transaction.id}`);
     } else {
       navigate(`/billing?transactionId=${transaction.id}`);
     }
-  };
+  }, [navigate]);
 
-  const getStatus = (transaction: typeof transactions[0]): Status => {
-    const daysDiff = Math.floor((Date.now() - new Date(transaction.date).getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff > 30) return 'overdue';
-    if (daysDiff > 0) return 'pending';
-    return 'paid';
-  };
+  // Tabs configuration - 'selling' is the dataStore type for sales
+  const tabs: { id: Tab; label: string; icon: React.ElementType; count: number; color: string }[] = [
+    { id: 'all', label: 'All Transactions', icon: FiFileText, count: transactions.length, color: 'text-gray-600' },
+    { id: 'sales', label: 'Sales', icon: FiShoppingCart, count: transactions.filter((t) => t.type === 'selling').length, color: 'text-emerald-600' },
+    { id: 'purchase', label: 'Purchases', icon: FiPackage, count: transactions.filter((t) => t.type === 'purchase').length, color: 'text-blue-600' },
+    { id: 'payments', label: 'Payments', icon: FiCreditCard, count: transactions.filter((t) => t.type === 'payment_in' || t.type === 'payment_out').length, color: 'text-purple-600' },
+    { id: 'returns', label: 'Returns', icon: FiRotateCcw, count: transactions.filter((t) => t.type === 'sales_return' || t.type === 'purchase_return').length, color: 'text-orange-600' },
+    { id: 'expense', label: 'Expense/Income', icon: FiTrendingDown, count: transactions.filter((t) => t.type === 'expense' || t.type === 'income').length, color: 'text-rose-600' },
+  ];
 
-  const getStatusIcon = (status: Status) => {
-    switch (status) {
-      case 'paid':
-        return <FiCheckCircle className="w-4 h-4" />;
-      case 'pending':
-        return <FiClock className="w-4 h-4" />;
-      case 'overdue':
-        return <FiAlertCircle className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-      case 'pending':
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-      case 'overdue':
-        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-    }
-  };
-
-  const tabs = [
-    { id: 'all' as Tab, label: t('transactions.all'), icon: FiFileText, count: transactions.length },
-    { id: 'selling' as Tab, label: t('transactions.sales'), icon: FiArrowUpRight, count: transactions.filter(t => t.type === 'selling').length, color: 'text-green-600' },
-    { id: 'purchase' as Tab, label: t('transactions.purchases'), icon: FiArrowDownLeft, count: transactions.filter(t => t.type === 'purchase').length, color: 'text-blue-600' },
-    { id: 'expense' as Tab, label: t('transactions.expenses'), icon: FiCreditCard, count: transactions.filter(t => t.type === 'expense').length, color: 'text-red-600' },
+  // Full transaction menu - all 9 transaction types
+  const transactionMenuItems = [
+    {
+      id: 'sales',
+      label: 'Add Sales',
+      desc: 'Create sales invoice',
+      icon: FiShoppingCart,
+      color: 'bg-emerald-500',
+      onClick: () => setSalesDialog({ open: true })
+    },
+    {
+      id: 'purchase',
+      label: 'Add Purchase',
+      desc: 'Record a purchase',
+      icon: FiPackage,
+      color: 'bg-blue-500',
+      onClick: () => setPurchaseDialog({ open: true })
+    },
+    {
+      id: 'payment_in',
+      label: 'Payment In',
+      desc: 'Receive payment from customer',
+      icon: FiArrowDownLeft,
+      color: 'bg-green-500',
+      onClick: () => setPaymentInDialog({ open: true })
+    },
+    {
+      id: 'payment_out',
+      label: 'Payment Out',
+      desc: 'Make payment to supplier',
+      icon: FiArrowUpRight,
+      color: 'bg-red-500',
+      onClick: () => setPaymentOutDialog({ open: true })
+    },
+    {
+      id: 'quotation',
+      label: 'Create Quotation',
+      desc: 'Generate a quotation/estimate',
+      icon: FiFileText,
+      color: 'bg-purple-500',
+      onClick: () => setQuotationDialog({ open: true })
+    },
+    {
+      id: 'sales_return',
+      label: 'Sales Return',
+      desc: 'Process customer return',
+      icon: FiRotateCcw,
+      color: 'bg-orange-500',
+      onClick: () => setSalesReturnDialog({ open: true })
+    },
+    {
+      id: 'purchase_return',
+      label: 'Purchase Return',
+      desc: 'Return goods to supplier',
+      icon: FiRotateCw,
+      color: 'bg-amber-500',
+      onClick: () => setPurchaseReturnDialog({ open: true })
+    },
+    {
+      id: 'expense',
+      label: 'Add Expense',
+      desc: 'Record business expense',
+      icon: FiTrendingDown,
+      color: 'bg-rose-500',
+      onClick: () => setExpenseDialog({ open: true })
+    },
+    {
+      id: 'income',
+      label: 'Add Income',
+      desc: 'Record other income',
+      icon: FiTrendingUp,
+      color: 'bg-teal-500',
+      onClick: () => setIncomeDialog({ open: true })
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 overflow-x-hidden">
-      <div className="w-full max-w-1600px mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
-        {/* Header - Interactive Style */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-linear-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-100 dark:border-emerald-800/30 hover:shadow-lg transition-all duration-300 cursor-default flex-1">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform duration-300">
-              <FiCreditCard className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                {t('transactions.title')}
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
-                  {n(transactions.length)} {t('transactions.records') || 'Records'}
-                </span>
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {t('transactions.description')}
-              </p>
-            </div>
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-gray-50 to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Header */}
+        <div className="relative mb-8 rounded-2xl">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-linear-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.07'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
           </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="border-2 hover:border-blue-500 hover:text-blue-600 transition-all text-xs sm:text-sm"
-            >
-              <FiFilter className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-              <span className="hidden sm:inline">{t('transactions.filter')}</span>
-              <span className="sm:hidden">Filter</span>
-            </Button>
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="border-2 hover:border-green-500 hover:text-green-600 transition-all text-xs sm:text-sm"
-              >
-                <FiDownload className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                <span className="hidden sm:inline">{t('common.export')}</span>
-                <FiChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1 sm:ml-2" />
-              </Button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-44 sm:w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <button
-                    onClick={() => handleExport('pdf')}
-                    className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <FiFileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
-                    {t('transactions.exportAsPdf')}
-                  </button>
-                  <button
-                    onClick={() => handleExport('excel')}
-                    className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <FiFileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
-                    {t('transactions.exportAsExcel')}
-                  </button>
-                  <button
-                    onClick={() => handleExport('csv')}
-                    className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <FiFileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
-                    {t('transactions.exportAsCsv')}
-                  </button>
+
+          <div className="relative px-6 py-8 sm:px-8 sm:py-10">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* Title Section */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/20">
+                  <FiCreditCard className="w-8 h-8 text-white" />
                 </div>
-              )}
+                <div className="text-white">
+                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3">
+                    Transactions
+                    <span className="px-3 py-1 rounded-full text-sm font-semibold bg-white/20 backdrop-blur-sm border border-white/10">
+                      {n(transactions.length)}
+                    </span>
+                  </h1>
+                  <p className="text-white/80 text-sm mt-1 max-w-md">
+                    Manage all your business transactions in one place
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {/* Filter Button */}
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all"
+                >
+                  <FiFilter className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Filters</span>
+                </button>
+
+                {/* Export Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all"
+                  >
+                    <FiDownload className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Export</span>
+                    <FiChevronDown className="w-4 h-4 ml-1" />
+                  </button>
+                  {showExportMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                      <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+                        {['pdf', 'excel', 'csv'].map((format) => (
+                          <button
+                            key={format}
+                            onClick={() => handleExport(format as any)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <FiFileText className={`w-4 h-4 ${format === 'pdf' ? 'text-red-500' : format === 'excel' ? 'text-green-500' : 'text-blue-500'}`} />
+                            Export as {format.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Add Transaction Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNewTransactionMenu(!showNewTransactionMenu)}
+                    className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold bg-white text-indigo-700 hover:bg-indigo-50 shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <FiPlus className="w-5 h-5 mr-2" />
+                    <span>New Transaction</span>
+                    <FiChevronDown className="w-4 h-4 ml-2" />
+                  </button>
+
+                  {showNewTransactionMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowNewTransactionMenu(false)} />
+                      <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 max-h-[70vh] overflow-y-auto">
+                        <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Create Transaction</p>
+                        </div>
+                        {transactionMenuItems.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              item.onClick();
+                              setShowNewTransactionMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <div className={`w-9 h-9 rounded-lg ${item.color} flex items-center justify-center shrink-0 shadow-sm`}>
+                              <item.icon className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{item.label}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-            <Button
-              size="sm"
-              onClick={() => setShowAddDialog(true)}
-              className="bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all text-xs sm:text-sm"
-            >
-              <FiPlus className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-              <span className="hidden sm:inline">{t('transactions.addTransaction')}</span>
-              <span className="sm:hidden">Add</span>
-            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <KPICard
-            title={t('transactions.totalIncome')}
+            title="Total Income"
             value={stats.income}
             borderColor="emerald"
-            onClick={() => navigate('/dashboard/kpi/sales')}
-            icon={<FiTrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />}
-            subtitle={`${n(transactions.filter((t) => t.type === 'selling').length)} ${t('transactions.sales')}`}
+            icon={<FiTrendingUp className="w-5 h-5" />}
+            subtitle={`${n(filteredTransactions.filter((t) => ['selling', 'payment_in', 'income'].includes(t.type)).length)} transactions`}
           />
-
           <KPICard
-            title={t('transactions.totalExpenses')}
+            title="Total Expenses"
             value={stats.expenses}
             borderColor="red"
-            onClick={() => navigate('/dashboard/kpi/payable')}
-            icon={<FiTrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />}
-            subtitle={`${n(transactions.filter((t) => t.type === 'purchase' || t.type === 'expense').length)} txns`}
+            icon={<FiTrendingDown className="w-5 h-5" />}
+            subtitle={`${n(filteredTransactions.filter((t) => ['purchase', 'payment_out', 'expense'].includes(t.type)).length)} transactions`}
           />
-
           <KPICard
-            title={t('transactions.netBalance')}
+            title="Net Balance"
             value={stats.balance}
             borderColor="blue"
-            onClick={() => navigate('/dashboard/kpi/balance')}
-            icon={<NepaliRupeeIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
-            subtitle={stats.balance >= 0 ? t('transactions.profit') : t('transactions.loss')}
-            change={undefined} // Not using the growth % here
+            icon={<NepaliRupeeIcon className="w-5 h-5" />}
+            subtitle={stats.balance >= 0 ? 'Profit' : 'Loss'}
           />
-
           <KPICard
-            title={t('transactions.totalTransactions')}
+            title="Transactions"
             value={stats.count}
             borderColor="purple"
-            icon={<FiFileText className="w-4 h-4 sm:w-5 sm:h-5" />}
-            subtitle={quickFilter === 'today' ? t('common.today') : quickFilter === 'week' ? t('common.thisWeek') : t('common.thisMonth')}
+            icon={<FiFileText className="w-5 h-5" />}
+            subtitle={quickFilter === 'today' ? 'Today' : quickFilter === 'week' ? 'This Week' : quickFilter === 'month' ? 'This Month' : 'This Year'}
           />
         </div>
 
-        {/* Tabs and Filters */}
-        <Card className="p-3 sm:p-4 mb-4 sm:mb-6">
+        {/* Filters Panel */}
+        <Card className="p-4 sm:p-6 mb-6">
           {/* Quick Date Filters */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700">
-            <FiCalendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-            <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mr-1 sm:mr-2">{t('transactions.quickFilter')}:</span>
-            {(['today', 'week', 'month', 'custom'] as QuickFilter[]).map((filter) => (
+          <div className="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 mr-2">
+              <FiCalendar className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Period:</span>
+            </div>
+            {(['today', 'week', 'month', 'year', 'custom'] as QuickFilter[]).map((filter) => (
               <button
                 key={filter}
                 onClick={() => {
@@ -354,16 +472,16 @@ export default function TransactionsPage() {
                   if (filter === 'custom') setShowFilters(true);
                 }}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${quickFilter === filter
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
-                {filter === 'today' ? t('common.today') : filter === 'week' ? t('common.thisWeek') : filter === 'month' ? t('common.thisMonth') : t('transactions.custom')}
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
               </button>
             ))}
           </div>
 
-          {/* Transaction Type Tabs */}
+          {/* Tab Navigation */}
           <div className="flex flex-wrap gap-2 mb-4">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -377,7 +495,7 @@ export default function TransactionsPage() {
                     }`}
                 >
                   <Icon className={`w-4 h-4 ${activeTab !== tab.id ? tab.color : ''}`} />
-                  {tab.label}
+                  <span className="hidden sm:inline">{tab.label}</span>
                   <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id
                     ? 'bg-white/20 text-white dark:bg-gray-900/20 dark:text-gray-900'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
@@ -391,293 +509,154 @@ export default function TransactionsPage() {
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 mb-4 animate-in fade-in slide-in-from-top-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Custom Date Range</h3>
+                <button
+                  onClick={() => setShowFilters(false)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <FiX className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                    {t('transactions.party')}
-                  </label>
-                  <select
-                    value={selectedPartyId}
-                    onChange={(e) => setSelectedPartyId(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
-                  >
-                    <option value="">{t('transactions.allParties')}</option>
-                    {parties.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                    {t('transactions.from')}
-                  </label>
-                  <Input
+                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">From</label>
+                  <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="border-2"
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setQuickFilter('custom');
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                    {t('transactions.to')}
-                  </label>
-                  <Input
+                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">To</label>
+                  <input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="border-2"
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setQuickFilter('custom');
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
             </div>
           )}
-
-          {/* Search and Sort */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-50">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder={t('transactions.search')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
-            >
-              <option value="date">{t('transactions.sortByDate')}</option>
-              <option value="amount">{t('transactions.sortByAmount')}</option>
-              <option value="party">{t('transactions.sortByParty')}</option>
-            </select>
-            <button
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-blue-500 hover:text-blue-600 transition-colors"
-            >
-              {sortOrder === 'asc' ? '↑ ASC' : '↓ DESC'}
-            </button>
-          </div>
         </Card>
 
-        {/* Transactions List */}
-        <Card className="overflow-hidden">
-          {filteredTransactions.length === 0 ? (
-            <div className="p-16 text-center">
-              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiFileText className="w-10 h-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                {t('transactions.noTransactions')}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6">
-                {t('transactions.noTransactionsDesc')}
-              </p>
-              <Button onClick={() => setShowAddDialog(true)}>
-                <FiPlus className="w-5 h-5 mr-2" />
-                {t('transactions.addFirst')}
-              </Button>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {filteredTransactions.map((transaction) => {
-                const status = getStatus(transaction);
-                return (
-                  <div
-                    key={transaction.id}
-                    className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      {/* Icon */}
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${transaction.type === 'selling'
-                        ? 'bg-linear-to-br from-emerald-400 to-emerald-600 text-white'
-                        : transaction.type === 'purchase'
-                          ? 'bg-linear-to-br from-blue-400 to-blue-600 text-white'
-                          : 'bg-linear-to-br from-red-400 to-red-600 text-white'
-                        }`}>
-                        {transaction.type === 'selling' ? (
-                          <FiArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6" />
-                        ) : transaction.type === 'purchase' ? (
-                          <FiArrowDownLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-                        ) : (
-                          <FiCreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
-                        )}
-                      </div>
+        {/* Transactions Table */}
+        <TransactionTable
+          transactions={filteredTransactions}
+          onView={handleViewTransaction}
+          onEdit={handleEditTransaction}
+          onDelete={handleDeleteTransaction}
+          onPrint={handlePrintTransaction}
+          language={language}
+        />
 
-                      {/* Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
-                            {transaction.partyName || transaction.description}
-                          </h3>
-                          <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(status)}`}>
-                            {getStatusIcon(status)}
-                            <span className="capitalize">{status}</span>
-                          </span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                          {transaction.description}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-gray-400">
-                            <FiCalendar className="w-3 h-3" />
-                            {d(transaction.date)}
-                          </span>
-                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${transaction.type === 'selling'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : transaction.type === 'purchase'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            }`}>
-                            {transaction.type === 'selling' ? t('transactions.sales') : transaction.type === 'purchase' ? t('transactions.purchases') : t('transactions.expenses')}
-                          </span>
-                          {/* Mobile status badge */}
-                          <span className={`sm:hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(status)}`}>
-                            {getStatusIcon(status)}
-                          </span>
-                        </div>
-                      </div>
+        {/* Dialogs */}
+        <SalesPurchaseDialog
+          isOpen={salesDialog.open}
+          onClose={() => setSalesDialog({ open: false })}
+          type="sales"
+          editData={salesDialog.editData}
+          onSuccess={() => setSalesDialog({ open: false })}
+        />
 
-                      {/* Amount */}
-                      <div className="text-right shrink-0">
-                        <p className={`text-base sm:text-lg font-bold ${transaction.type === 'selling'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-gray-900 dark:text-gray-100'
-                          }`}>
-                          {transaction.type === 'selling' ? '+' : '-'}{c(transaction.amount)}
-                        </p>
-                      </div>
+        <SalesPurchaseDialog
+          isOpen={purchaseDialog.open}
+          onClose={() => setPurchaseDialog({ open: false })}
+          type="purchase"
+          editData={purchaseDialog.editData}
+          onSuccess={() => setPurchaseDialog({ open: false })}
+        />
 
-                      {/* Actions */}
-                      <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => navigate(`/transactions/${transaction.id}`)}
-                          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                          title={t('common.view')}
-                        >
-                          <FiEye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleCreateBill(transaction)}
-                          className="p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 transition-colors"
-                          title={t('billing.createBill')}
-                        >
-                          <FiPrinter className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => handleMenuClick(e, transaction.id)}
-                          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                          title={t('common.more')}
-                        >
-                          <FiMoreVertical className="w-4 h-4" />
-                        </button>
-                      </div>
-                      
-                      {/* Mobile menu button */}
-                      <button
-                        onClick={(e) => handleMenuClick(e, transaction.id)}
-                        className="sm:hidden p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 transition-colors"
-                      >
-                        <FiMoreVertical className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <PaymentDialog
+          isOpen={paymentInDialog.open}
+          onClose={() => setPaymentInDialog({ open: false })}
+          type="payment_in"
+          editData={paymentInDialog.editData}
+          onSuccess={() => setPaymentInDialog({ open: false })}
+        />
 
-          {/* Results Summary */}
-          {filteredTransactions.length > 0 && (
-            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t('common.showing')} <span className="font-semibold">{n(filteredTransactions.length)}</span> {t('transactions.transactions')}
-                </p>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    ↑ {c(stats.income)}
-                  </span>
-                  <span className="text-red-600 dark:text-red-400 font-medium">
-                    ↓ {c(stats.expenses)}
-                  </span>
-                  <span className={`font-bold ${stats.balance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-                    = {c(stats.balance)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
+        <PaymentDialog
+          isOpen={paymentOutDialog.open}
+          onClose={() => setPaymentOutDialog({ open: false })}
+          type="payment_out"
+          editData={paymentOutDialog.editData}
+          onSuccess={() => setPaymentOutDialog({ open: false })}
+        />
 
-        {showAddDialog && (
-          <AddTransactionDialog onClose={() => setShowAddDialog(false)} />
-        )}
+        <ExpenseIncomeDialog
+          isOpen={expenseDialog.open}
+          onClose={() => setExpenseDialog({ open: false })}
+          type="expense"
+          editData={expenseDialog.editData}
+          onSuccess={() => setExpenseDialog({ open: false })}
+        />
 
-        {/* Transaction Actions Dropdown */}
-        {selectedTransactionId && dropdownPosition && (
-          <div className="fixed inset-0 z-50" onClick={closeDropdown}>
-            <div
-              className="absolute bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 w-48 z-50"
-              style={{
-                top: dropdownPosition.top,
-                left: dropdownPosition.left
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => {
-                  navigate(`/transactions/${selectedTransactionId}`);
-                  closeDropdown();
-                }}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-              >
-                <FiEye className="w-4 h-4" />
-                {t('transactions.viewDetails')}
-              </button>
-              <button
-                onClick={() => {
-                  const tx = transactions.find(t => t.id === selectedTransactionId);
-                  if (tx) {
-                    handleCreateBill(tx);
-                  }
-                  closeDropdown();
-                }}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-              >
-                <FiPrinter className="w-4 h-4" />
-                {t('billing.createBill')}
-              </button>
-              <button
-                onClick={() => {
-                  alert(t('common.featureComingSoon'));
-                  closeDropdown();
-                }}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-              >
-                <FiEdit2 className="w-4 h-4" />
-                {t('transactions.editTransaction')}
-              </button>
-              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-              <button
-                onClick={() => {
-                  if (confirm(t('common.confirmDelete'))) {
-                    alert(t('common.featureComingSoon'));
-                  }
-                  closeDropdown();
-                }}
-                className="w-full px-4 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
-              >
-                <FiTrash2 className="w-4 h-4" />
-                {t('transactions.deleteTransaction')}
-              </button>
-            </div>
-          </div>
-        )}
+        <ExpenseIncomeDialog
+          isOpen={incomeDialog.open}
+          onClose={() => setIncomeDialog({ open: false })}
+          type="income"
+          editData={incomeDialog.editData}
+          onSuccess={() => setIncomeDialog({ open: false })}
+        />
+
+        <ReturnDialog
+          isOpen={salesReturnDialog.open}
+          onClose={() => setSalesReturnDialog({ open: false })}
+          type="sales_return"
+          editData={salesReturnDialog.editData}
+          onSuccess={() => setSalesReturnDialog({ open: false })}
+        />
+
+        <ReturnDialog
+          isOpen={purchaseReturnDialog.open}
+          onClose={() => setPurchaseReturnDialog({ open: false })}
+          type="purchase_return"
+          editData={purchaseReturnDialog.editData}
+          onSuccess={() => setPurchaseReturnDialog({ open: false })}
+        />
+
+        <QuotationDialog
+          isOpen={quotationDialog.open}
+          onClose={() => setQuotationDialog({ open: false })}
+          editData={quotationDialog.editData}
+          onSuccess={() => setQuotationDialog({ open: false })}
+        />
+
+        <TransactionViewDialog
+          isOpen={viewDialog.open}
+          onClose={() => setViewDialog({ open: false })}
+          transaction={viewDialog.transaction}
+          onEdit={() => {
+            setViewDialog({ open: false });
+            if (viewDialog.transaction) {
+              handleEditTransaction(viewDialog.transaction);
+            }
+          }}
+          onPrint={() => {
+            if (viewDialog.transaction) {
+              handlePrintTransaction(viewDialog.transaction);
+            }
+          }}
+        />
+
+        <DeleteConfirmDialog
+          isOpen={deleteDialog.open}
+          onClose={() => setDeleteDialog({ open: false })}
+          onConfirm={confirmDelete}
+          title="Delete Transaction"
+          message="Are you sure you want to delete this transaction? This action cannot be undone."
+          itemName={deleteDialog.transaction?.transactionNumber || deleteDialog.transaction?.description}
+          isLoading={isDeleting}
+        />
       </div>
     </div>
   );

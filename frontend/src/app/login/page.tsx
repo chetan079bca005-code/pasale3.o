@@ -62,8 +62,14 @@ export default function LoginPage() {
     
     if (!formData.password) {
       newErrors.password = t('validation.required');
-    } else if (formData.password.length < 6) {
-      newErrors.password = t('validation.minLength').replace('{0}', '6');
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/(?=.*[a-z])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one lowercase letter';
+    } else if (!/(?=.*[A-Z])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter';
+    } else if (!/(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one number';
     }
     
     setErrors(newErrors);
@@ -167,7 +173,12 @@ export default function LoginPage() {
       const data = await response.json();
       
       if (response.ok) {
-        // Store tokens in localStorage
+        // Store tokens in auth store (this persists to localStorage)
+        if (data.access && data.refresh) {
+          authStore.setTokens(data.access, data.refresh);
+        }
+        
+        // Also store in legacy location for backwards compatibility
         if (data.access) {
           localStorage.setItem('auth_token', data.access);
         }

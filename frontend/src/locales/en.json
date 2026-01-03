@@ -274,7 +274,7 @@
     }
   },
   "billing": {
-    "title": "Billing & POS",
+    "title": "Professional Invoice",
     "description": "Create invoices or use quick POS for instant sales",
     "createInvoice": "Create Invoice",
     "createEBilling": "Create E-Billing",
@@ -1024,7 +1024,7 @@
   "sidebar": {
     "dashboard": "Dashboard",
     "inventory": "Inventory",
-    "billing": "Billing",
+    "billing": "Invoice",
     "pos": "POS",
     "transactions": "Transactions",
     "parties": "Parties",

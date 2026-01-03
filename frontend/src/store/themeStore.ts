@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-export type Theme = 'light' | 'classic' | 'dark';
+// Only Dark and Light modes supported - Dark is the default
+export type Theme = 'light' | 'dark';
 
 interface ThemeState {
   theme: Theme;
@@ -10,7 +11,10 @@ interface ThemeState {
 
 const getStoredTheme = (): Theme => {
   if (typeof window === 'undefined') return 'dark';
-  return (localStorage.getItem('pasale-theme') as Theme) || 'dark';
+  const stored = localStorage.getItem('pasale-theme');
+  // Only allow 'light' or 'dark', default to 'dark'
+  if (stored === 'light') return 'light';
+  return 'dark';
 };
 
 export const useThemeStore = create<ThemeState>((set) => ({
@@ -19,8 +23,8 @@ export const useThemeStore = create<ThemeState>((set) => ({
     if (typeof window !== 'undefined') {
       localStorage.setItem('pasale-theme', theme);
       // Update document class for theme
-      document.documentElement.classList.remove('light', 'classic', 'dark');
-      if (theme === 'dark' || theme === 'classic') {
+      document.documentElement.classList.remove('light', 'dark');
+      if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       }
       document.documentElement.setAttribute('data-theme', theme);
@@ -29,13 +33,12 @@ export const useThemeStore = create<ThemeState>((set) => ({
   },
   toggleTheme: () => {
     set((state) => {
-      const themes: Theme[] = ['light', 'classic', 'dark'];
-      const currentIndex = themes.indexOf(state.theme);
-      const newTheme = themes[(currentIndex + 1) % themes.length];
+      // Simple toggle between dark and light
+      const newTheme: Theme = state.theme === 'dark' ? 'light' : 'dark';
       if (typeof window !== 'undefined') {
         localStorage.setItem('pasale-theme', newTheme);
-        document.documentElement.classList.remove('light', 'classic', 'dark');
-        if (newTheme === 'dark' || newTheme === 'classic') {
+        document.documentElement.classList.remove('light', 'dark');
+        if (newTheme === 'dark') {
           document.documentElement.classList.add('dark');
         }
         document.documentElement.setAttribute('data-theme', newTheme);

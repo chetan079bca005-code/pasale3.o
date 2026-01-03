@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useTranslation } from '../../utils/i18n';
 import { useThemeStore } from '../../store/themeStore';
+import { expenseApi, ApiExpenseData } from '../../utils/api';
 import {
   BarChart,
   Bar,
@@ -43,6 +44,7 @@ import {
   FiTarget,
   FiEdit2,
   FiMinus,
+  FiLoader,
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
 
@@ -96,6 +98,8 @@ export default function ExpenseMonitoringPage() {
 
   const [monthlyBudget, setMonthlyBudget] = useState(getStoredBudget());
   const [tempBudget, setTempBudget] = useState(monthlyBudget.toString());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     setIsDark(theme === 'dark');
@@ -320,40 +324,74 @@ export default function ExpenseMonitoringPage() {
   }, [expenses, transactions, dateRange]);
 
   // Handle add expense - also adds to transactions
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!newExpense.amount || !newExpense.description) return;
+    
+    setIsSubmitting(true);
+    setSubmitError('');
     
     const expenseId = `exp-${Date.now()}`;
     const expenseAmount = parseFloat(newExpense.amount);
     
-    // Add to expenses
-    addExpense({
-      id: expenseId,
-      category: newExpense.category,
-      amount: expenseAmount,
-      description: newExpense.description,
-      date: newExpense.date,
-      isNecessary: newExpense.isNecessary,
-    });
-    
-    // Also add to transactions so it shows in transaction page
-    addTransaction({
-      id: `trans-${Date.now()}`,
-      type: 'expense',
-      amount: expenseAmount,
-      date: newExpense.date,
-      description: `${newExpense.category}: ${newExpense.description}`,
-      partyName: 'Business Expense',
-    });
-    
-    setNewExpense({ 
-      category: 'Other', 
-      amount: '', 
-      description: '', 
-      date: new Date().toISOString().split('T')[0], 
-      isNecessary: true 
-    });
-    setShowAddModal(false);
+    try {
+      // Map frontend category to API category
+      const categoryMap: Record<string, ApiExpenseData['category']> = {
+        'Rent': 'Rent',
+        'Utilities': 'Utilities',
+        'Salary': 'Salary',
+        'Inventory': 'Inventory',
+        'Transport': 'Transport',
+        'Food': 'Food',
+        'Office Supplies': 'Office Supplies',
+        'Phone/Internet': 'Phone',
+        'Marketing': 'Marketing',
+        'Other': 'Other',
+      };
+
+      // Create expense via API
+      const apiData: ApiExpenseData = {
+        category: categoryMap[newExpense.category] || 'Other',
+        amount: expenseAmount,
+        description: newExpense.description,
+        date: newExpense.date,
+        is_necessary: newExpense.isNecessary,
+      };
+
+      const response = await expenseApi.create(apiData);
+      
+      // Add to local expenses store with API-returned ID
+      addExpense({
+        id: response.expense.id.toString(),
+        category: newExpense.category,
+        amount: expenseAmount,
+        description: newExpense.description,
+        date: newExpense.date,
+        isNecessary: newExpense.isNecessary,
+      });
+      
+      // Also add to transactions so it shows in transaction page
+      addTransaction({
+        id: `trans-${Date.now()}`,
+        type: 'expense',
+        amount: expenseAmount,
+        date: newExpense.date,
+        description: `${newExpense.category}: ${newExpense.description}`,
+        partyName: 'Business Expense',
+      });
+      
+      setNewExpense({ 
+        category: 'Other', 
+        amount: '', 
+        description: '', 
+        date: new Date().toISOString().split('T')[0], 
+        isNecessary: true 
+      });
+      setShowAddModal(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to add expense. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Clear filters
@@ -693,10 +731,24 @@ export default function ExpenseMonitoringPage() {
                   <div className={`absolute top-0.5 sm:top-1 w-5 sm:w-6 h-5 sm:h-6 bg-white rounded-full shadow-md transition-all ${newExpense.isNecessary ? 'left-6 sm:left-7' : 'left-1'}`} />
                 </button>
               </div>
+              {submitError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 flex items-center gap-2 text-sm">
+                  <FiAlertCircle className="w-4 h-4 shrink-0" />
+                  {submitError}
+                </div>
+              )}
               <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
-                <Button variant="outline" onClick={() => setShowAddModal(false)} className="flex-1" size="sm">{t('common.cancel')}</Button>
-                <Button onClick={handleAddExpense} disabled={!newExpense.amount || !newExpense.description} className="flex-1 bg-linear-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700" size="sm">
-                  <FiPlus className="w-4 h-4 mr-1 sm:mr-2" />{t('expenseMonitoring.addExpense')}
+                <Button variant="outline" onClick={() => { setShowAddModal(false); setSubmitError(''); }} className="flex-1" size="sm" disabled={isSubmitting}>{t('common.cancel')}</Button>
+                <Button onClick={handleAddExpense} disabled={!newExpense.amount || !newExpense.description || isSubmitting} className="flex-1 bg-linear-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 disabled:opacity-50" size="sm">
+                  {isSubmitting ? (
+                    <>
+                      <FiLoader className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FiPlus className="w-4 h-4 mr-1 sm:mr-2" />{t('expenseMonitoring.addExpense')}
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
