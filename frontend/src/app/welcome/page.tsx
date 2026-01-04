@@ -18,9 +18,7 @@ export default function WelcomePage() {
   }, []);
 
   const handleGetStarted = () => {
-    login();
-    resetOnboarding();
-    navigate('/business-type');
+    navigate('/signup');
   };
 
   const handleLogin = () => {

@@ -81,8 +81,8 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ data }) => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[200px] sm:min-h-[250px] lg:min-h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="flex-1 w-full h-full min-h-[200px]">
+        <ResponsiveContainer width="100%" height="100%" debounce={300}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
             <XAxis

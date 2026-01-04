@@ -9,6 +9,7 @@ interface UserProfile {
   phone: string;
   photo: string | null;
   panNumber?: string;
+  businessName?: string;
 }
 
 interface AuthState {
@@ -18,6 +19,8 @@ interface AuthState {
   isProfileComplete: boolean;
   isBusinessVerified: boolean;
   userProfile: UserProfile;
+  accessToken: string | null;
+  refreshToken: string | null;
   login: () => void;
   logout: () => void;
   completeOnboarding: () => void;
@@ -26,6 +29,8 @@ interface AuthState {
   setProfileComplete: (complete: boolean) => void;
   setBusinessVerified: (verified: boolean) => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
+  setTokens: (accessToken: string, refreshToken: string) => void;
+  clearTokens: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -42,6 +47,8 @@ export const useAuthStore = create<AuthState>()(
         phone: '9812345678',
         photo: null,
       },
+      accessToken: null,
+      refreshToken: null,
       login: () => set({ isAuthenticated: true }),
       logout: () =>
         set({
@@ -56,6 +63,8 @@ export const useAuthStore = create<AuthState>()(
             phone: '9812345678',
             photo: null,
           },
+          accessToken: null,
+          refreshToken: null,
         }),
       completeOnboarding: () => set({ onboardingComplete: true }),
       resetOnboarding: () => set({ onboardingComplete: false }),
@@ -66,6 +75,10 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           userProfile: { ...state.userProfile, ...profile },
         })),
+      setTokens: (accessToken, refreshToken) => 
+        set({ accessToken, refreshToken, isAuthenticated: true }),
+      clearTokens: () => 
+        set({ accessToken: null, refreshToken: null, isAuthenticated: false }),
     }),
     {
       name: 'auth-storage',

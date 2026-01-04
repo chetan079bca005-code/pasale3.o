@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
 import { useAuthStore } from '../../store/authStore';
 import { useBusinessStore } from '../../store/businessStore';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { LanguageSwitcher } from '../../components/layout/LanguageSwitcher';
 import { ThemeSwitcher } from '../../components/layout/ThemeSwitcher';
@@ -19,7 +20,8 @@ import {
   FiMapPin,
   FiUser,
   FiHash,
-  FiTag
+  FiTag,
+  FiAlertCircle
 } from 'react-icons/fi';
 
 type VerificationMethod = 'email' | 'phone' | null;
@@ -38,6 +40,7 @@ export default function VerifyBusinessPage() {
   const { t } = useTranslation();
   const { setBusinessVerified } = useAuthStore();
   const { setBusinessDetails } = useBusinessStore();
+  const { sendOTP, verifyOTP, error: apiError, clearError } = useAuth();
   
   const [step, setStep] = useState<'details' | 'verify'>('details');
   const [pan, setPan] = useState('');
@@ -63,6 +66,13 @@ export default function VerifyBusinessPage() {
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  // Clear API error when form data changes
+  useEffect(() => {
+    if (apiError) {
+      clearError();
+    }
+  }, [otp, email, phone, businessName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const validateDetails = () => {
     const newErrors: { [key: string]: string } = {};
@@ -96,29 +106,36 @@ export default function VerifyBusinessPage() {
     }
   };
 
-  const handleSendOTP = async (method: VerificationMethod) => {
+  const handleSendOTPRequest = async (method: VerificationMethod) => {
     if (!method) return;
 
     setIsSendingOTP(true);
     setOtpError('');
     setVerificationMethod(method);
 
-    // Simulate API call to send OTP
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Use the auth hook to send OTP
+    const success = await sendOTP({
+      email: method === 'email' ? email : undefined,
+      phone: method === 'phone' ? phone : undefined,
+      type: method,
+      purpose: 'verification',
+    });
 
     setIsSendingOTP(false);
     
-    // Start resend timer
-    setResendTimer(60);
-    const timer = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (success) {
+      // Start resend timer
+      setResendTimer(60);
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -152,7 +169,7 @@ export default function VerifyBusinessPage() {
     }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleVerifyOTPSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOtpError('');
 
@@ -164,11 +181,15 @@ export default function VerifyBusinessPage() {
 
     setIsVerifying(true);
 
-    // Simulate API call to verify OTP
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Use the auth hook to verify OTP
+    const success = await verifyOTP({
+      email: verificationMethod === 'email' ? email : undefined,
+      phone: verificationMethod === 'phone' ? phone : undefined,
+      otp: otpValue,
+      purpose: 'verification',
+    });
 
-    // Mock verification - in real app, check with backend
-    if (otpValue === '123456') {
+    if (success) {
       // Save business data
       setBusinessDetails({ businessName, panNumber: pan, ownerName });
       setBusinessVerified(true);
@@ -184,7 +205,7 @@ export default function VerifyBusinessPage() {
       completeOnboarding();
       navigate('/dashboard');
     } else {
-      setOtpError(t('verification.invalidOTP'));
+      setOtpError(apiError?.message || t('verification.invalidOTP'));
       setOtp(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
     }
@@ -194,7 +215,7 @@ export default function VerifyBusinessPage() {
 
   const handleResendOTP = () => {
     if (verificationMethod && resendTimer === 0) {
-      handleSendOTP(verificationMethod);
+      handleSendOTPRequest(verificationMethod);
       setOtp(['', '', '', '', '', '']);
       setOtpError('');
     }
@@ -236,7 +257,7 @@ export default function VerifyBusinessPage() {
               </p>
             </div>
 
-            <form onSubmit={handleVerifyOTP} className="space-y-4 sm:space-y-6">
+            <form onSubmit={handleVerifyOTPSubmit} className="space-y-4 sm:space-y-6">
               {/* OTP Input */}
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 sm:mb-4 text-center">
@@ -585,7 +606,7 @@ export default function VerifyBusinessPage() {
                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <button
                     type="button"
-                    onClick={() => handleSendOTP('email')}
+                    onClick={() => handleSendOTPRequest('email')}
                     disabled={isSendingOTP}
                     className={`flex flex-col items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
                       verificationMethod === 'email'
@@ -604,7 +625,7 @@ export default function VerifyBusinessPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSendOTP('phone')}
+                    onClick={() => handleSendOTPRequest('phone')}
                     disabled={isSendingOTP}
                     className={`flex flex-col items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
                       verificationMethod === 'phone'

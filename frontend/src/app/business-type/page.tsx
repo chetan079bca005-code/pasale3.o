@@ -99,7 +99,7 @@ export default function BusinessTypePage() {
             size="lg"
             onClick={handleContinue}
             disabled={!selected}
-            className="min-w-[150px] sm:min-w-[200px]"
+            className="min-w-150px sm:min-w-200px"
           >
             {t('common.next')}
           </Button>

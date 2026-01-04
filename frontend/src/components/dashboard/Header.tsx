@@ -45,9 +45,10 @@ const formatDateTime = (language: string) => {
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
+export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarCollapsed }) => {
   const { t, language } = useTranslation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -93,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
 
   return (
     <>
-      <header className="h-14 sm:h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 sm:px-4 lg:px-6 fixed top-0 right-0 left-0 lg:left-64 z-30 transition-[left] duration-300 ease-in-out shadow-sm">
+      <header className={`h-14 sm:h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 sm:px-4 lg:px-6 fixed top-0 right-0 left-0 ${isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'} z-30 transition-[left] duration-300 ease-in-out shadow-sm`}>
         {/* Left Section */}
         <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
           {/* Mobile menu button */}
@@ -138,21 +139,23 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             </span>
           </div>
 
-          {/* Add New Button */}
-          <Button
-            className="hidden sm:flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-shadow text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2"
-            onClick={() => setShowAddNew(true)}
-          >
-            <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="font-semibold hidden md:inline">{t('addNew.title')}</span>
-          </Button>
-          <Button
-            size="icon"
-            className="flex sm:hidden shadow-sm p-1.5"
-            onClick={() => setShowAddNew(true)}
-          >
-            <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Button>
+          {/* Add New Button with Dropdown */}
+          <div className="relative group">
+            <Button
+              className="hidden sm:flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-shadow text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2"
+              onClick={() => setShowAddNew(true)}
+            >
+              <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="font-semibold hidden md:inline">{t('addNew.title')}</span>
+            </Button>
+            <Button
+              size="icon"
+              className="flex sm:hidden shadow-sm p-1.5"
+              onClick={() => setShowAddNew(true)}
+            >
+              <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+            </Button>
+          </div>
 
           {/* Divider */}
           <div className="hidden md:block w-px h-6 sm:h-8 bg-gray-200 dark:bg-gray-700 mx-0.5 sm:mx-1"></div>

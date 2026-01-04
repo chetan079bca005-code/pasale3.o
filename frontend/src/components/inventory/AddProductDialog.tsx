@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -17,10 +17,25 @@ import {
   FiLayers,
   FiCheck,
   FiBarChart2,
-  FiShoppingBag
+  FiShoppingBag,
+  FiLoader
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 import { useTranslation } from '../../utils/i18n';
+
+// API Configuration - Use environment variable or fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+interface ApiCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+const getAuthToken = () => {
+  // Check for auth_token (set by login page)
+  return localStorage.getItem('auth_token');
+};
 
 interface Product {
   id: string;
@@ -40,6 +55,26 @@ interface AddProductDialogProps {
   initialData?: Product;
   isEdit?: boolean;
 }
+
+// Category icon mapping
+const getCategoryIcon = (categoryName: string): string => {
+  const iconMap: Record<string, string> = {
+    'electronics': '📱',
+    'clothing': '👕',
+    'food': '🍎',
+    'grocery': '🛒',
+    'household': '🏠',
+    'beauty': '💄',
+    'medicine': '💊',
+    'stationery': '📝',
+    'hardware': '🔧',
+  };
+  const key = categoryName.toLowerCase();
+  for (const [name, icon] of Object.entries(iconMap)) {
+    if (key.includes(name)) return icon;
+  }
+  return '📦';
+};
 
 export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   onClose,
@@ -72,19 +107,37 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'inventory' | 'additional'>('basic');
+  const [categories, setCategories] = useState<Array<{ value: string; label: string; icon: string; id: number }>>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
-  const categories = [
-    { value: 'electronics', label: 'Electronics', icon: '📱' },
-    { value: 'clothing', label: 'Clothing & Apparel', icon: '👕' },
-    { value: 'food', label: 'Food & Beverages', icon: '🍎' },
-    { value: 'grocery', label: 'Grocery', icon: '🛒' },
-    { value: 'household', label: 'Household Items', icon: '🏠' },
-    { value: 'beauty', label: 'Beauty & Personal Care', icon: '💄' },
-    { value: 'medicine', label: 'Medicine & Health', icon: '💊' },
-    { value: 'stationery', label: 'Stationery', icon: '📝' },
-    { value: 'hardware', label: 'Hardware & Tools', icon: '🔧' },
-    { value: 'other', label: 'Other', icon: '📦' },
-  ];
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoadingCategories(true);
+      try {
+        // For now, use default categories since backend might not have category endpoint
+        // When backend has category API, replace with actual fetch
+        const defaultCategories = [
+          { id: 1, value: 'electronics', label: 'Electronics', icon: '📱' },
+          { id: 2, value: 'clothing', label: 'Clothing & Apparel', icon: '👕' },
+          { id: 3, value: 'food', label: 'Food & Beverages', icon: '🍎' },
+          { id: 4, value: 'grocery', label: 'Grocery', icon: '🛒' },
+          { id: 5, value: 'household', label: 'Household Items', icon: '🏠' },
+          { id: 6, value: 'beauty', label: 'Beauty & Personal Care', icon: '💄' },
+          { id: 7, value: 'medicine', label: 'Medicine & Health', icon: '💊' },
+          { id: 8, value: 'stationery', label: 'Stationery', icon: '📝' },
+          { id: 9, value: 'hardware', label: 'Hardware & Tools', icon: '🔧' },
+          { id: 10, value: 'other', label: 'Other', icon: '📦' },
+        ];
+        setCategories(defaultCategories);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const units = [
     { value: 'piece', label: 'Piece (pcs)' },
@@ -150,26 +203,71 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
       return;
     }
 
+    if (!formData.category) {
+      setError('Please select a category');
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        throw new Error('Please login to add products');
+      }
+      
+      // Find category ID from selected category value
+      const selectedCategory = categories.find(cat => cat.value === formData.category);
+      
+      // Prepare API payload matching backend serializer
+      const apiPayload = {
+        product_name: formData.name.trim(),
+        category: selectedCategory?.id || 1, // Backend expects category ID
+        sku: formData.sku || `SKU-${Date.now()}`,
+        product_Img: formData.image || '',
+        unit_price: parseFloat(formData.price),
+        quantity: parseInt(formData.quantity),
+        description: formData.description || '',
+      };
 
-    const productData = {
-      name: formData.name.trim(),
-      quantity: parseInt(formData.quantity),
-      price: parseFloat(formData.price),
-      image: formData.image,
-      sku: formData.sku || undefined,
-      description: formData.description || undefined,
-      category: formData.category || undefined,
-    };
+      const response = await fetch(`${API_BASE_URL}/products/`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(apiPayload),
+      });
 
-    onSave(productData);
-    setSuccess(true);
-    setTimeout(() => {
-      onClose();
-    }, 1000);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to save product');
+      }
+
+      // Transform form data to frontend format for onSave callback
+      const productData = {
+        name: formData.name.trim(),
+        quantity: parseInt(formData.quantity),
+        price: parseFloat(formData.price),
+        image: formData.image,
+        sku: formData.sku || `SKU-${Date.now()}`,
+        description: formData.description || undefined,
+        category: formData.category || undefined,
+      };
+
+      onSave(productData);
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      console.error('Error saving product:', err);
+      setError(err.message || 'Failed to save product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const profitInfo = calculateProfit();
@@ -182,21 +280,21 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <Card className="w-full max-w-5xl p-0 max-h-[95vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        {/* Header */}
-        <div className="bg-linear-to-r from-indigo-600 to-purple-600 p-6 text-white">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="w-full max-w-5xl bg-white dark:bg-gray-900 rounded-2xl max-h-[95vh] overflow-hidden shadow-2xl">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                <FiPackage className="w-7 h-7" />
+              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                <FiPackage className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">
-                  {isEdit ? t('dialog.editProduct') : t('inventory.addProduct')}
+                <h2 className="text-xl font-bold">
+                  {isEdit ? 'Edit Product' : 'Add New Product'}
                 </h2>
-                <p className="text-white/80 text-sm mt-1">
-                  {isEdit ? t('dialog.updateProductInfo') : t('dialog.addNewProduct')}
+                <p className="text-white/80 text-sm">
+                  {isEdit ? 'Update product information' : 'Add a new product to your inventory'}
                 </p>
               </div>
             </div>
@@ -204,14 +302,14 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
               onClick={onClose}
               className="text-white/80 hover:text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
             >
-              <FiX className="w-6 h-6" />
+              <FiX className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {/* Success Message */}
         {success && (
-          <div className="m-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 font-medium flex items-center gap-3 animate-in slide-in-from-top-2">
+          <div className="mx-6 mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 font-medium flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center">
               <FiCheck className="w-5 h-5" />
             </div>
@@ -228,7 +326,7 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-5 py-4 text-sm font-semibold border-b-2 transition-all ${
                 activeTab === tab.id
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
@@ -238,7 +336,7 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
           ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-280px)]">
+        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-250px)]">
           <div className="p-6 space-y-6">
             {/* Basic Information Tab */}
             {activeTab === 'basic' && (
@@ -366,7 +464,7 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
                 <div>
                   <label className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300 flex items-center gap-2">
                     <FiTag className="w-4 h-4" />
-                    {t('common.category')}
+                    Category
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                     {categories.map((cat) => (
@@ -659,41 +757,40 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
             )}
 
             {error && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 font-medium flex items-center gap-3">
-                <span className="text-xl">⚠️</span>
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 font-medium flex items-center gap-3">
+                <FiAlertCircle className="w-5 h-5" />
                 {error}
               </div>
             )}
           </div>
 
           {/* Action Buttons */}
-          <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t-2 border-gray-200 dark:border-gray-700 p-6 flex gap-3">
-            <Button
+          <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 p-6 flex gap-3">
+            <button
               type="button"
-              variant="outline"
               onClick={onClose}
-              className="px-8 border-2 font-semibold"
               disabled={isSubmitting}
+              className="px-6 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               {t('common.cancel')}
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 shadow-md flex items-center justify-center gap-2"
               disabled={isSubmitting}
+              className="flex-1 inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <FiCheck className="w-5 h-5" />
+                  <FiCheck className="w-5 h-5 mr-2" />
                   {isEdit ? t('dialog.updateProduct') : t('inventory.addProduct')}
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
+import { useDataStore } from '../../store/dataStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PageHeader } from '../../components/layout/PageHeader';
+import { exportToWord, exportToExcel, exportToPDF, exportToHTML } from '../../utils/exportUtils';
 import {
   FiFileText,
   FiPackage,
@@ -138,102 +141,209 @@ export default function ReportsPage() {
     setIsRefreshing(false);
   };
 
-  // Print handler
+  // Print handler - generate printable report and open print dialog
   const handlePrint = () => {
-    window.print();
+    const reportTitle = selectedReport ? reportCards.find(card => card.id === selectedReport)?.title : 'Business Report';
+    const { summaryCards, chartTitle } = getReportSummary(selectedReport);
+
+    // Format stats for print
+    const formattedStats = summaryCards.map(card => ({
+      label: card.label,
+      value: card.isCurrency === false ? String(card.value) : c(typeof card.value === 'number' ? card.value : 0),
+      change: card.change
+    }));
+
+    // Create printable HTML content
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${reportTitle} - Pasale Report</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3B82F6; padding-bottom: 20px; }
+          .header h1 { font-size: 28px; color: #1e40af; margin-bottom: 8px; }
+          .header p { color: #64748b; font-size: 14px; }
+          .date-range { background: #f8fafc; padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; text-align: center; }
+          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 30px; }
+          .stat-card { background: #f8fafc; border-left: 4px solid #3B82F6; padding: 16px; border-radius: 8px; }
+          .stat-card.green { border-color: #10B981; }
+          .stat-card.red { border-color: #EF4444; }
+          .stat-card.purple { border-color: #8B5CF6; }
+          .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+          .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; }
+          .stat-change { font-size: 12px; margin-top: 4px; }
+          .stat-change.positive { color: #10B981; }
+          .stat-change.negative { color: #EF4444; }
+          .table-section { margin-top: 30px; }
+          .table-section h3 { font-size: 18px; color: #1e293b; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+          th { background: #f8fafc; font-weight: 600; color: #64748b; font-size: 12px; text-transform: uppercase; }
+          td { font-size: 14px; }
+          .footer { margin-top: 40px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${reportTitle}</h1>
+          <p>Pasale Business Management</p>
+        </div>
+        <div class="date-range">
+          <strong>Report Period:</strong> ${dateRange.startDate} to ${dateRange.endDate}
+        </div>
+        <div class="stats-grid">
+          ${formattedStats.map((stat, idx) => `
+            <div class="stat-card ${idx === 1 ? 'green' : idx === 2 ? 'red' : idx === 3 ? 'purple' : ''}">
+              <div class="stat-label">${stat.label}</div>
+              <div class="stat-value">${stat.value}</div>
+              <div class="stat-change ${stat.change.startsWith('+') ? 'positive' : 'negative'}">${stat.change}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="table-section">
+          <h3>Detailed Breakdown</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[1, 2, 3, 4, 5].map(i => `
+                <tr>
+                  <td>${new Date(Date.now() - i * 86400000).toLocaleDateString()}</td>
+                  <td>Transaction #${1000 + i}</td>
+                  <td>Sales</td>
+                  <td>${c(1500 * i)}</td>
+                  <td>Completed</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleString()} | Pasale Business Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Open print window
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
   };
 
-  // Export handlers with actual PDF generation
-  const handleDownload = (format: 'pdf' | 'excel' | 'csv') => {
-    const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Business_Report';
-    const filename = `${reportName?.replace(/\s+/g, '_')}_${dateRange.startDate}_to_${dateRange.endDate}`;
+  const getReportSummary = (type: ReportType | null) => {
+    let summaryCards: any[] = [];
+    let chartTitle = '';
 
-    if (format === 'pdf') {
-      // Generate PDF using HTML content
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        const reportTitle = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : t('businessReport') || 'Business Report';
-        const reportDesc = selectedReport ? reportCards.find(c => c.id === selectedReport)?.description : '';
+    switch (type) {
+      case 'profit_loss':
+        summaryCards = [
+          { label: t('reports.totalRevenue'), value: 524000, icon: FiTrendingUp, color: 'from-blue-500 to-blue-600', change: '+15.3%' },
+          { label: t('reports.totalExpenses'), value: 342000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+8.2%' },
+          { label: t('reports.grossProfit'), value: 182000, icon: NepaliRupeeIcon, color: 'from-emerald-500 to-emerald-600', change: '+22.1%' },
+          { label: t('reports.netMargin'), value: '34.7%', icon: FiPercent, color: 'from-purple-500 to-purple-600', change: '+2.4%', isCurrency: false },
+        ];
+        chartTitle = t('reports.revenueVsExpenses');
+        break;
+      case 'sales':
+        summaryCards = [
+          { label: t('reports.totalSales'), value: 450000, icon: FiShoppingCart, color: 'from-blue-500 to-blue-600', change: '+22.1%' },
+          { label: t('reports.orderCount'), value: 324, icon: FiBox, color: 'from-emerald-500 to-emerald-600', change: '+18', isCurrency: false },
+          { label: t('reports.avgOrderValue'), value: 1389, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+5.2%' },
+          { label: t('reports.topCategory'), value: 'Electronics', icon: FiAward, color: 'from-amber-500 to-amber-600', change: '45%', isCurrency: false },
+        ];
+        chartTitle = t('reports.salesTrend');
+        break;
+      case 'expenses':
+        summaryCards = [
+          { label: t('reports.totalExpenses'), value: 268000, icon: FiCreditCard, color: 'from-red-500 to-red-600', change: '-5.4%' },
+          { label: t('reports.operatingCosts'), value: 145000, icon: FiActivity, color: 'from-orange-500 to-orange-600', change: '-3.2%' },
+          { label: t('reports.purchases'), value: 98000, icon: FiTruck, color: 'from-blue-500 to-blue-600', change: '-8.1%' },
+          { label: t('reports.otherExpenses'), value: 25000, icon: FiFileText, color: 'from-purple-500 to-purple-600', change: '+2.5%' },
+        ];
+        chartTitle = t('reports.expenseBreakdown');
+        break;
+      case 'inventory':
+        summaryCards = [
+          { label: t('reports.totalStockValue'), value: 1250000, icon: FiPackage, color: 'from-teal-500 to-teal-600', change: '+6.8%' },
+          { label: t('reports.totalItems'), value: 456, icon: FiBox, color: 'from-blue-500 to-blue-600', change: '+24', isCurrency: false },
+          { label: t('reports.lowStockItems'), value: 12, icon: FiActivity, color: 'from-amber-500 to-amber-600', change: '-3', isCurrency: false },
+          { label: t('reports.outOfStock'), value: 5, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+2', isCurrency: false },
+        ];
+        chartTitle = t('reports.inventoryAnalysis');
+        break;
+      default:
+        summaryCards = [
+          { label: t('reports.totalRevenue'), value: 524000, icon: FiBarChart2, color: 'from-blue-500 to-blue-600', change: '+12.5%' },
+          { label: t('reports.grossProfit'), value: 182000, icon: FiActivity, color: 'from-emerald-500 to-emerald-600', change: '+8.3%' },
+          { label: t('reports.totalExpenses'), value: 268000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '-5.4%' },
+          { label: t('reports.netMargin'), value: '34.7%', icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+2.1%', isCurrency: false },
+        ];
+        chartTitle = t('reports.overview') || 'Business Overview';
+    }
+    return { summaryCards, chartTitle };
+  };
 
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${filename}</title>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1f2937; max-width: 800px; margin: 0 auto; }
-              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #7c3aed; }
-              .header h1 { font-size: 24px; color: #1f2937; margin-bottom: 8px; }
-              .header p { color: #6b7280; font-size: 14px; }
-              .date-range { background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-              .section { margin-bottom: 30px; }
-              .section h2 { font-size: 18px; color: #374151; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-              .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
-              .stat-card { padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #7c3aed; }
-              .stat-card .value { font-size: 24px; font-weight: 700; color: #1f2937; }
-              .stat-card .label { font-size: 12px; color: #6b7280; margin-bottom: 5px; }
-              .stat-card .change { font-size: 11px; color: #10b981; }
-              .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
-              @media print { body { padding: 20px; } }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>📊 ${reportTitle}</h1>
-              <p>${reportDesc}</p>
-            </div>
-            <div class="date-range">
-              <strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}
-            </div>
-            <div class="section">
-              <h2>Summary</h2>
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="label">Total Revenue</div>
-                  <div class="value">${c(450000)}</div>
-                  <div class="change">+22.1% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Net Profit</div>
-                  <div class="value">${c(182000)}</div>
-                  <div class="change">+12.5% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Total Expenses</div>
-                  <div class="value">${c(268000)}</div>
-                  <div class="change">-5.4% from last period</div>
-                </div>
-                <div class="stat-card">
-                  <div class="label">Cash Flow</div>
-                  <div class="value">${c(524000)}</div>
-                  <div class="change">+15.3% from last period</div>
-                </div>
-              </div>
-            </div>
-            <div class="footer">
-              <p>Generated on ${new Date().toLocaleDateString()} | Pasale Business Management</p>
-            </div>
-          </body>
-          </html>
-        `);
-        printWindow.document.close();
+  // Export handlers - using exportUtils library
+  const handleDownload = (format: 'word' | 'excel' | 'pdf' | 'html') => {
+    const reportTitle = selectedReport ? reportCards.find(card => card.id === selectedReport)?.title : 'Business Report';
+    const { summaryCards, chartTitle } = getReportSummary(selectedReport);
 
-        // Trigger print dialog for PDF
-        setTimeout(() => {
-          printWindow.print();
-        }, 250);
-      }
-    } else {
-      // For Excel/CSV - create downloadable file
-      const csvContent = `Report: ${reportName}\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nMetric,Value,Change\nTotal Revenue,450000,+22.1%\nNet Profit,182000,+12.5%\nTotal Expenses,268000,-5.4%\nCash Flow,524000,+15.3%`;
-      const blob = new Blob([csvContent], { type: format === 'csv' ? 'text/csv' : 'application/vnd.ms-excel' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${filename}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+    // Format stats for export - fix: properly format currency values
+    const formattedStats = summaryCards.map(card => ({
+      label: card.label,
+      value: card.isCurrency === false ? String(card.value) : c(typeof card.value === 'number' ? card.value : 0),
+      change: card.change
+    }));
+
+    // Sample table data for the report
+    const sampleTableData = {
+      title: t('reports.detailedBreakdown') || 'Detailed Breakdown',
+      headers: [t('reports.date') || 'Date', t('reports.descriptionCol') || 'Description', t('reports.category') || 'Category', t('reports.amount') || 'Amount', t('reports.status') || 'Status'],
+      rows: [1, 2, 3, 4, 5].map(i => [
+        new Date(Date.now() - i * 86400000).toLocaleDateString(),
+        `Transaction #${n(1000 + i)}`,
+        t('reports.sales') || 'Sales',
+        c(1500 * i),
+        t('reports.completed') || 'Completed'
+      ])
+    };
+
+    const reportData = {
+      title: reportTitle || 'Report',
+      dateRange: dateRange,
+      stats: formattedStats,
+      chartTitle: chartTitle,
+      tables: [sampleTableData],
+      companyName: 'Pasale Business Management',
+      companyAddress: '',
+      companyPhone: '',
+      companyEmail: ''
+    };
+
+    if (format === 'word') {
+      exportToWord(reportData);
+    } else if (format === 'excel') {
+      exportToExcel(reportData);
+    } else if (format === 'pdf') {
+      exportToPDF(reportData);
+    } else if (format === 'html') {
+      exportToHTML(reportData);
     }
   };
 
@@ -259,12 +369,24 @@ export default function ReportsPage() {
     }
   };
 
-  // Email handler
-  const handleEmail = () => {
-    const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Report';
-    const subject = encodeURIComponent(`${reportName} - ${dateRange.startDate} to ${dateRange.endDate}`);
-    const body = encodeURIComponent(`Please find the ${reportName} attached.\n\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nGenerated from Pasale`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  // Email handler - Generate downloadable report before sending
+  const handleEmail = async () => {
+    try {
+      const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Report';
+      const subject = encodeURIComponent(`${reportName} - ${dateRange.startDate} to ${dateRange.endDate}`);
+      const body = encodeURIComponent(`Please find the attached ${reportName} report.\n\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nGenerated from Pasale Business Management\n${new Date().toLocaleDateString()}`);
+      
+      // Open email client
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      
+      // Also trigger download of PDF for reference
+      setTimeout(() => {
+        handleDownload('pdf');
+      }, 500);
+    } catch (error) {
+      console.error('Error opening email:', error);
+      alert('Please open your email client manually to send the report.');
+    }
   };
 
   const pieData = [
@@ -338,54 +460,7 @@ export default function ReportsPage() {
   };
 
   const renderReportContent = () => {
-    let summaryCards = [];
-    let chartTitle = '';
-
-    switch (selectedReport) {
-      case 'profit_loss':
-        summaryCards = [
-          { label: t('reports.totalRevenue'), value: 524000, icon: FiTrendingUp, color: 'from-blue-500 to-blue-600', change: '+15.3%' },
-          { label: t('reports.totalExpenses'), value: 342000, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+8.2%' },
-          { label: t('reports.grossProfit'), value: 182000, icon: NepaliRupeeIcon, color: 'from-emerald-500 to-emerald-600', change: '+22.1%' },
-          { label: t('reports.netMargin'), value: '34.7%', icon: FiPercent, color: 'from-purple-500 to-purple-600', change: '+2.4%', isCurrency: false },
-        ];
-        chartTitle = t('reports.revenueVsExpenses');
-        break;
-      case 'sales':
-        summaryCards = [
-          { label: t('reports.totalSales'), value: 450000, icon: FiShoppingCart, color: 'from-blue-500 to-blue-600', change: '+22.1%' },
-          { label: t('reports.orderCount'), value: 324, icon: FiBox, color: 'from-emerald-500 to-emerald-600', change: '+18', isCurrency: false },
-          { label: t('reports.avgOrderValue'), value: 1389, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+5.2%' },
-          { label: t('reports.topCategory'), value: 'Electronics', icon: FiAward, color: 'from-amber-500 to-amber-600', change: '45%', isCurrency: false },
-        ];
-        chartTitle = t('reports.salesTrend');
-        break;
-      case 'expenses':
-        summaryCards = [
-          { label: t('reports.totalExpenses'), value: 268000, icon: FiCreditCard, color: 'from-red-500 to-red-600', change: '-5.4%' },
-          { label: t('reports.operatingCosts'), value: 145000, icon: FiActivity, color: 'from-orange-500 to-orange-600', change: '-3.2%' },
-          { label: t('reports.purchases'), value: 98000, icon: FiTruck, color: 'from-blue-500 to-blue-600', change: '-8.1%' },
-          { label: t('reports.otherExpenses'), value: 25000, icon: FiFileText, color: 'from-purple-500 to-purple-600', change: '+2.5%' },
-        ];
-        chartTitle = t('reports.expenseBreakdown');
-        break;
-      case 'inventory':
-        summaryCards = [
-          { label: t('reports.totalStockValue'), value: 1250000, icon: FiPackage, color: 'from-teal-500 to-teal-600', change: '+6.8%' },
-          { label: t('reports.totalItems'), value: 456, icon: FiBox, color: 'from-blue-500 to-blue-600', change: '+24', isCurrency: false },
-          { label: t('reports.lowStockItems'), value: 12, icon: FiActivity, color: 'from-amber-500 to-amber-600', change: '-3', isCurrency: false },
-          { label: t('reports.outOfStock'), value: 5, icon: FiTrendingDown, color: 'from-red-500 to-red-600', change: '+2', isCurrency: false },
-        ];
-        chartTitle = t('reports.inventoryAnalysis');
-        break;
-      default:
-        summaryCards = [
-          { label: t('reports.metric1'), value: 100000, icon: FiBarChart2, color: 'from-blue-500 to-blue-600', change: '+10%' },
-          { label: t('reports.metric2'), value: 50000, icon: FiActivity, color: 'from-emerald-500 to-emerald-600', change: '+5%' },
-          { label: t('reports.metric3'), value: 25000, icon: FiTarget, color: 'from-purple-500 to-purple-600', change: '+15%' },
-        ];
-        chartTitle = t('reports.analysis');
-    }
+    const { summaryCards, chartTitle } = getReportSummary(selectedReport);
 
     return (
       <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -442,7 +517,7 @@ export default function ReportsPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-1.5 sm:gap-2 shrink-0">
+              <div className="flex gap-1.5 sm:gap-2 shrink-0 flex-wrap sm:flex-nowrap">
                 <Button
                   variant="outline"
                   className="sm:hidden"
@@ -452,12 +527,52 @@ export default function ReportsPage() {
                 >
                   <FiRefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
-                <Button variant="outline" onClick={handlePrint} size="sm" className="sm:size-auto" title={t('reports.print') || 'Print'}>
+
+                {/* Print Button */}
+                <Button variant="outline" size="sm" className="sm:size-auto" onClick={handlePrint} title="Print Report">
                   <FiPrinter className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" onClick={() => handleDownload('pdf')} size="sm" className="sm:size-auto" title={t('reports.download') || 'Download'}>
-                  <FiDownload className="w-4 h-4" />
-                </Button>
+
+                {/* Download Dropdown */}
+                <div className="relative group">
+                  <Button variant="outline" size="sm" className="sm:size-auto" title={t('reports.download') || 'Download'}>
+                    <FiDownload className="w-4 h-4" />
+                  </Button>
+                  <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('reports.exportAs') || 'Export As'}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDownload('html')}
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/30 border-b border-gray-100 dark:border-gray-700 transition-colors"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 text-xs">🌐</span>
+                      <span>HTML Report</span>
+                    </button>
+                    <button
+                      onClick={() => handleDownload('pdf')}
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-red-900/30 border-b border-gray-100 dark:border-gray-700 transition-colors"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-red-600 dark:text-red-400 text-xs">📄</span>
+                      <span>PDF (Print)</span>
+                    </button>
+                    <button
+                      onClick={() => handleDownload('word')}
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-b border-gray-100 dark:border-gray-700 transition-colors"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xs">📝</span>
+                      <span>Word (.docx)</span>
+                    </button>
+                    <button
+                      onClick={() => handleDownload('excel')}
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400 text-xs">📊</span>
+                      <span>Excel (.xlsx)</span>
+                    </button>
+                  </div>
+                </div>
+
                 <Button variant="outline" size="sm" className="sm:size-auto" onClick={handleShare} title={t('reports.share') || 'Share'}>
                   <FiShare2 className="w-4 h-4" />
                 </Button>
@@ -469,8 +584,8 @@ export default function ReportsPage() {
           </div>
         </Card>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        {/* Summary Cards - Compact */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           {summaryCards.map((card, idx) => {
             const Icon = card.icon;
             const colorMap: Record<string, { border: string; bg: string; text: string; gradient: string }> = {
@@ -486,21 +601,21 @@ export default function ReportsPage() {
             return (
               <Card
                 key={idx}
-                className={`group relative p-3 sm:p-5 border-l-4 ${colors.border} cursor-pointer bg-white dark:bg-gray-800 shadow-sm hover:shadow-xl transform hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden`}
+                className={`group relative p-2.5 sm:p-3 border-l-3 ${colors.border} cursor-pointer bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg transform hover:-translate-y-0.5 hover:scale-[1.01] transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden rounded-lg`}
               >
                 <div className={`absolute inset-0 bg-linear-to-r from-transparent ${colors.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none`} />
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-2 sm:mb-3">
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 ${colors.bg} rounded-lg sm:rounded-xl flex items-center justify-center ${colors.text} transition-transform duration-300 group-hover:scale-110`}>
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 ${colors.bg} rounded-md sm:rounded-lg flex items-center justify-center ${colors.text} transition-transform duration-300 group-hover:scale-110`}>
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
-                    <span className={`text-[10px] sm:text-sm font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${card.change.startsWith('+') ? `${colors.bg} ${colors.text}` : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                    <span className={`text-[9px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full ${card.change.startsWith('+') ? `${colors.bg} ${colors.text}` : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                       }`}>
                       {card.change}
                     </span>
                   </div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1 truncate">{card.label}</p>
-                  <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 transition-transform duration-300 group-hover:scale-105 origin-left truncate">
+                  <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium mb-0.5 truncate">{card.label}</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-gray-100 transition-transform duration-300 group-hover:scale-105 origin-left truncate">
                     {card.isCurrency === false ? card.value : c(typeof card.value === 'number' ? card.value : 0)}
                   </p>
                 </div>
@@ -619,10 +734,16 @@ export default function ReportsPage() {
         <Card className="overflow-hidden">
           <div className="p-3 sm:p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
             <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100">{t('reports.detailedBreakdown')}</h3>
-            <Button variant="outline" size="sm">
-              <FiDownload className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">{t('common.export')}</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => handleDownload('html')} title={t('reports.downloadHTML') || 'Download HTML'}>
+                <FiFileText className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">HTML</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleDownload('excel')} title={t('reports.downloadExcel') || 'Download Excel'}>
+                <FiDownload className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">{t('common.export')}</span>
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-600px">
@@ -704,25 +825,28 @@ export default function ReportsPage() {
       <div className="max-w-1600px mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
         {selectedReport ? (
           <>
-            {/* Report Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <Button
-                variant="ghost"
-                onClick={() => setSelectedReport(null)}
-                className="hover:bg-white dark:hover:bg-gray-800 self-start"
-                size="sm"
-              >
-                <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-                <span className="text-sm">{t('reports.backToDashboard')}</span>
-              </Button>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {reportCards.find(c => c.id === selectedReport)?.title}
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-0.5 sm:mt-1 truncate">
-                  {reportCards.find(c => c.id === selectedReport)?.description}
-                </p>
-              </div>
+            {/* Report Header - Using PageHeader Component */}
+            <div className="mb-4 sm:mb-6">
+              {(() => {
+                const report = reportCards.find(c => c.id === selectedReport);
+                const Icon = report?.icon;
+                return (
+                  <PageHeader
+                    title={report?.title || 'Report'}
+                    subtitle={report?.description}
+                    icon={Icon ? <Icon className="w-full h-full" /> : undefined}
+                    actions={
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSelectedReport(null)}
+                        size="sm"
+                      >
+                        <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </Button>
+                    }
+                  />
+                );
+              })()}
             </div>
             {renderReportContent()}
           </>

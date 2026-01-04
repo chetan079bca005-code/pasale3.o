@@ -63,7 +63,7 @@
 @layer components {
   /* Global responsive container */
   .responsive-container {
-    @apply w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8;
+    @apply w-full max-w-400 mx-auto px-4 sm:px-6 lg:px-8;
   }
 
   /* Responsive card grid */
@@ -110,6 +110,22 @@
     padding-right: env(safe-area-inset-right);
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Individual safe area utilities */
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .mb-safe {
+    margin-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  /* Mobile bottom bar safe space */
+  @media (max-width: 640px) {
+    .pb-safe {
+      padding-bottom: max(4rem, env(safe-area-inset-bottom));
+    }
+  }
 }
 
 @media print {
@@ -121,14 +137,12 @@
     visibility: hidden;
   }
 
-  .print\\:static,
-  .print\\:shadow-none,
-  body>*:not(.no-print) {
+  .printable,
+  body > *:not(.no-print) {
     visibility: visible;
   }
 
-  .no-print,
-  .print\\:hidden {
+  .no-print {
     display: none !important;
   }
 }

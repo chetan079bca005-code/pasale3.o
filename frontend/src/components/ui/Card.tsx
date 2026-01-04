@@ -5,9 +5,10 @@ interface CardProps {
   className?: string;
   onClick?: () => void;
   noPadding?: boolean;
+  id?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', onClick, noPadding = false }) => {
+export const Card: React.FC<CardProps> = ({ children, className = '', onClick, noPadding = false, id }) => {
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {
       e.stopPropagation();
@@ -17,14 +18,16 @@ export const Card: React.FC<CardProps> = ({ children, className = '', onClick, n
 
   return (
     <div
+      id={id}
       className={`
-        bg-white dark:bg-gray-800
-        rounded-lg sm:rounded-xl
-        shadow-sm
-        border border-gray-200 dark:border-gray-700
-        transition-all duration-200
-        ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600' : ''}
-        ${noPadding ? '' : 'p-3 sm:p-4 lg:p-6'}
+        bg-white/80 dark:bg-gray-800/80
+        backdrop-blur-sm
+        rounded-2xl sm:rounded-3xl
+        shadow-sm hover:shadow-2xl hover:shadow-blue-500/10
+        border border-gray-100 dark:border-gray-700/50
+        transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+        ${onClick ? 'cursor-pointer active:scale-[0.98] hover:-translate-y-1' : ''}
+        ${noPadding ? '' : 'p-4 sm:p-6 lg:p-8'}
         ${className}
       `}
       onClick={handleClick}

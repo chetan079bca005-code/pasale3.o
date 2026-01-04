@@ -21,9 +21,11 @@ import {
   FiGlobe,
   FiHome,
   FiBriefcase,
+  FiLoader,
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 import { useTranslation } from '../../utils/i18n';
+import { partyApi, ApiPartyData } from '../../utils/api';
 
 interface AddPartyDialogProps {
   onClose: () => void;
@@ -78,86 +80,179 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'financial' | 'additional'>('basic');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Compute form validity for disabling the save button
+  const isFormValid = () => {
+    const trimmedName = formData.name.trim();
+    if (!trimmedName || trimmedName.length < 3) return false;
+    if (!formData.phone.trim()) return false;
+    if (!formData.address.trim()) return false;
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return false;
+    if (formData.phone && !/^[0-9]{10}$/.test(formData.phone.replace(/\s/g, ''))) return false;
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setValidationErrors({});
+    setLoading(true);
 
-    if (!formData.name.trim()) {
-      setError(t('validation.required') + ': ' + t('name'));
-      return;
+    const errors: Record<string, string> = {};
+    const trimmedName = formData.name.trim();
+    const trimmedPhone = formData.phone.trim();
+    const trimmedAddress = formData.address.trim();
+
+    // Name validation: required and minimum 3 characters
+    if (!trimmedName) {
+      errors.name = t('validation.required') + ': ' + t('name');
+    } else if (trimmedName.length < 3) {
+      errors.name = t('name') + ' must be at least 3 characters';
     }
 
-    if (formData.phone && !/^[0-9]{10}$/.test(formData.phone.replace(/\s/g, ''))) {
-      setError(t('validation.invalidPhone'));
-      return;
+    // Phone validation: required and must be 10 digits
+    if (!trimmedPhone) {
+      errors.phone = t('validation.required') + ': Phone Number';
+    } else if (!/^[0-9]{10}$/.test(trimmedPhone.replace(/\s/g, ''))) {
+      errors.phone = t('validation.invalidPhone');
     }
 
+    // Address validation: required
+    if (!trimmedAddress) {
+      errors.address = t('validation.required') + ': Address';
+    }
+
+    // Email validation: optional but must be valid format if provided
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setError(t('validation.invalidEmail'));
+      errors.email = t('validation.invalidEmail');
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setError(Object.values(errors)[0]); // Show first error in main error area
+      setLoading(false);
       return;
     }
 
-    if (isEdit && initialData) {
-      const updatedParty: Party = {
-        ...initialData,
-        name: formData.name.trim(),
-        type: formData.type,
-        phone: formData.phone || undefined,
-        email: formData.email || undefined,
-        address: formData.address || undefined,
-      };
-      updateParty(updatedParty);
-    } else {
-      const newParty: Party = {
-        id: Date.now().toString(),
-        name: formData.name.trim(),
-        type: formData.type,
-        phone: formData.phone || undefined,
-        email: formData.email || undefined,
-        address: formData.address || undefined,
-        balance: parseFloat(formData.openingBalance) || 0,
-      };
-      addParty(newParty);
-    }
+    try {
+      if (isEdit && initialData) {
+        // Update existing party via API
+        const apiData: Partial<ApiPartyData> = {
+          name: formData.name.trim(),
+          email: formData.email || undefined,
+          phone_no: formData.phone || undefined,
+          address: formData.address || undefined,
+        };
 
-    setSuccess(true);
-    setTimeout(() => {
-      onClose();
-    }, 800);
+        if (formData.type === 'customer') {
+          apiData.Customer_code = formData.customerCode || undefined;
+          apiData.open_balance = parseFloat(formData.openingBalance) || 0;
+          apiData.credit_limmit = parseFloat(formData.creditLimit) || 0;
+          apiData.preferred_payment_method = formData.preferredPayment === 'cash' ? 'Cash' : 
+            formData.preferredPayment === 'credit' ? 'Credit Card' : 
+            formData.preferredPayment === 'upi' ? 'UPI' : 'Bank Transfer';
+          apiData.referred_by = formData.referredBy || undefined;
+          apiData.notes = formData.notes || undefined;
+        } else {
+          apiData.code = formData.supplierCode || undefined;
+        }
+
+        await partyApi.update(parseInt(initialData.id), apiData);
+
+        // Update local store
+        const updatedParty: Party = {
+          ...initialData,
+          name: formData.name.trim(),
+          type: formData.type,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+          address: formData.address || undefined,
+        };
+        updateParty(updatedParty);
+      } else {
+        // Create new party via API
+        const apiData: ApiPartyData = {
+          Category_type: formData.type === 'customer' ? 'Customer' : 'Supplier',
+          is_active: true,
+          name: formData.name.trim(),
+          email: formData.email || undefined,
+          phone_no: formData.phone || undefined,
+          address: formData.address || undefined,
+        };
+
+        if (formData.type === 'customer') {
+          apiData.Customer_code = formData.customerCode || undefined;
+          apiData.open_balance = parseFloat(formData.openingBalance) || 0;
+          apiData.credit_limmit = parseFloat(formData.creditLimit) || 0;
+          apiData.preferred_payment_method = formData.preferredPayment === 'cash' ? 'Cash' : 
+            formData.preferredPayment === 'credit' ? 'Credit Card' : 
+            formData.preferredPayment === 'upi' ? 'UPI' : 'Bank Transfer';
+          apiData.loyalty_points = parseInt(formData.loyaltyPoints) || 0;
+          apiData.referred_by = formData.referredBy || undefined;
+          apiData.notes = formData.notes || undefined;
+        } else {
+          apiData.code = formData.supplierCode || `SUP-${Date.now()}`;
+        }
+
+        const response = await partyApi.create(apiData);
+
+        // Add to local store with API-returned ID
+        const newParty: Party = {
+          id: response.party.id.toString(),
+          name: formData.name.trim(),
+          type: formData.type,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+          address: formData.address || undefined,
+          balance: parseFloat(formData.openingBalance) || 0,
+        };
+        addParty(newParty);
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save party. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isCustomer = formData.type === 'customer';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <Card className="w-full max-w-3xl p-0 max-h-[95vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        {/* Header */}
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="w-full max-w-3xl bg-white dark:bg-gray-900 rounded-2xl max-h-[95vh] overflow-hidden shadow-2xl">
+        {/* Header with gradient */}
         <div
-          className={`bg-linear-to-r ${
-            isCustomer ? 'from-blue-500 to-blue-600' : 'from-purple-500 to-purple-600'
-          } p-6 text-white`}
+          className={`${isCustomer ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} px-6 py-5 text-white`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 {isCustomer ? (
-                  <FiUser className="w-7 h-7" />
+                  <FiUser className="w-6 h-6" />
                 ) : (
-                  <FiTruck className="w-7 h-7" />
+                  <FiTruck className="w-6 h-6" />
                 )}
               </div>
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-xl font-bold">
                   {isEdit
-                    ? t('editParty')
+                    ? 'Edit Party'
                     : isCustomer
-                    ? t('addCustomer')
-                    : t('addSupplier')}
+                    ? 'Add New Customer'
+                    : 'Add New Supplier'}
                 </h2>
-                <p className={`${isCustomer ? 'text-blue-100' : 'text-purple-100'} text-sm`}>
-                  {isCustomer ? t('customerDesc') : t('supplierDesc')}
+                <p className="text-white/80 text-sm">
+                  {isCustomer ? 'Add a new customer to your business' : 'Add a new supplier to your business'}
                 </p>
               </div>
             </div>
@@ -165,13 +260,13 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
               onClick={onClose}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
             >
-              <FiX className="w-6 h-6" />
+              <FiX className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {success && (
-          <div className="m-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 flex items-center gap-3 animate-in slide-in-from-top-2">
+          <div className="mx-6 mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-400 flex items-center gap-3">
             <FiCheckCircle className="w-5 h-5" />
             <span className="font-medium">
               {t('partySuccess').replace('{action}', isEdit ? t('updated') : t('added'))}
@@ -179,13 +274,13 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-200px)]">
+        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-180px)]">
           {/* Party Type Selection */}
           {!isEdit && !defaultType && (
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
               <label className="block text-sm font-bold mb-3 text-gray-700 dark:text-gray-300">
                 <FiTag className="w-4 h-4 inline mr-2" />
-                {t('type')} *
+                Type *
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <button
@@ -208,10 +303,10 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-gray-900 dark:text-gray-100 block">
-                      👤 {t('customer')}
+                      👤 Customer
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t('buyFromYou')}
+                      Buys from you
                     </span>
                   </div>
                 </button>
@@ -235,10 +330,10 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-gray-900 dark:text-gray-100 block">
-                      🏢 {t('supplier')}
+                      🏢 Supplier
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t('youBuyFrom')}
+                      You buy from
                     </span>
                   </div>
                 </button>
@@ -264,9 +359,9 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                       : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
-                  {tab === 'basic' && '📋 ' + t('basicInfo')}
-                  {tab === 'financial' && '💰 ' + t('financialInfo')}
-                  {tab === 'additional' && '📝 ' + t('additionalInfo')}
+                  {tab === 'basic' && '📋 Basic Info'}
+                  {tab === 'financial' && '💰 Financial Info'}
+                  {tab === 'additional' && '📝 Additional Info'}
                 </button>
               ))}
             </div>
@@ -281,21 +376,38 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       <FiUser className="w-4 h-4 inline mr-2" />
-                      {isCustomer ? t('customerName') : t('supplierName')} *
+                      {isCustomer ? 'Customer Name' : 'Supplier Name'} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder={t('enterName')}
+                      onChange={(e) => {
+                        setFormData({ ...formData, name: e.target.value });
+                        if (validationErrors.name) {
+                          setValidationErrors({ ...validationErrors, name: '' });
+                        }
+                      }}
+                      className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        validationErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                      placeholder="Enter name (min 3 characters)"
                       required
                     />
+                    {validationErrors.name && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                        <FiAlertCircle className="w-3 h-3" /> {validationErrors.name}
+                      </p>
+                    )}
+                    {formData.name && formData.name.trim().length > 0 && formData.name.trim().length < 3 && !validationErrors.name && (
+                      <p className="mt-1 text-xs text-amber-500 flex items-center gap-1">
+                        <FiAlertCircle className="w-3 h-3" /> Name must be at least 3 characters ({formData.name.trim().length}/3)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       <FiHash className="w-4 h-4 inline mr-2" />
-                      {isCustomer ? t('customerCode') : t('supplierCode')}
+                      {isCustomer ? 'Customer Code' : 'Supplier Code'}
                     </label>
                     <input
                       type="text"
@@ -334,65 +446,86 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       <FiPhone className="w-4 h-4 inline mr-2" />
-                      {t('phone')}
+                      Phone <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="tel"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => {
+                        setFormData({ ...formData, phone: e.target.value });
+                        if (validationErrors.phone) {
+                          setValidationErrors({ ...validationErrors, phone: '' });
+                        }
+                      }}
+                      className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        validationErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                       placeholder="9812345678"
+                      required
                     />
+                    {validationErrors.phone && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                        <FiAlertCircle className="w-3 h-3" /> {validationErrors.phone}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       <FiMail className="w-4 h-4 inline mr-2" />
-                      {t('email')}
+                      Email
                     </label>
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        if (validationErrors.email) {
+                          setValidationErrors({ ...validationErrors, email: '' });
+                        }
+                      }}
+                      className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        validationErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                       placeholder="email@example.com"
                     />
+                    {validationErrors.email && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                        <FiAlertCircle className="w-3 h-3" /> {validationErrors.email}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Customer: Date of Birth and Anniversary */}
-                {isCustomer && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                        <FiCalendar className="w-4 h-4 inline mr-2" />
-                        {t('dateOfBirth')}
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.dateOfBirth}
-                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                        className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                        <FiCalendar className="w-4 h-4 inline mr-2" />
-                        {t('anniversary')}
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.anniversary}
-                        onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })}
-                        className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Supplier: GST and PAN */}
+                {/* Address - Required field */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    <FiMapPin className="w-4 h-4 inline mr-2" />
+                    Address <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={formData.address}
+                    onChange={(e) => {
+                      setFormData({ ...formData, address: e.target.value });
+                      if (validationErrors.address) {
+                        setValidationErrors({ ...validationErrors, address: '' });
+                      }
+                    }}
+                    className={`w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                      validationErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                    rows={2}
+                    placeholder="Enter address"
+                    required
+                  />
+                  {validationErrors.address && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                      <FiAlertCircle className="w-3 h-3" /> {validationErrors.address}
+                    </p>
+                  )}
+                </div>
                 {!isCustomer && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                         <FiFileText className="w-4 h-4 inline mr-2" />
                         {t('gstNumber')}
@@ -404,7 +537,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                         className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="GST Number"
                       />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                         <FiFileText className="w-4 h-4 inline mr-2" />
@@ -421,27 +554,13 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                 )}
 
-                {/* Address */}
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                    <FiMapPin className="w-4 h-4 inline mr-2" />
-                    {t('address')}
-                  </label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    rows={2}
-                    placeholder={t('enterAddress')}
-                  />
-                </div>
-
+                {/* Address
                 {/* City, State, Pincode */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       <FiHome className="w-4 h-4 inline mr-2" />
-                      {t('common.city')}
+                      City
                     </label>
                     <input
                       type="text"
@@ -453,7 +572,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      {t('common.state')}
+                      State
                     </label>
                     <input
                       type="text"
@@ -465,7 +584,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      {t('common.pincode')}
+                      Pincode
                     </label>
                     <input
                       type="text"
@@ -494,7 +613,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                 >
                   <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                     <NepaliRupeeIcon className="w-5 h-5" />
-                    {t('balanceInfo')}
+                    Balance Information
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -721,15 +840,21 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
 
           {/* Actions */}
           <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-            <Button
+            <button
               type="submit"
-              className={`flex-1 bg-linear-to-r ${
+              disabled={loading || !isFormValid()}
+              className={`flex-1 inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-white transition-all ${
                 isCustomer
-                  ? 'from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                  : 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
-              } text-white font-bold py-3`}
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+                  : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800'
+              } disabled:opacity-50 disabled:cursor-not-allowed shadow-lg`}
             >
-              {isEdit ? (
+              {loading ? (
+                <>
+                  <FiLoader className="w-5 h-5 mr-2 animate-spin" />
+                  {t('common.saving') || 'Saving...'}
+                </>
+              ) : isEdit ? (
                 <>
                   <FiCheckCircle className="w-5 h-5 mr-2" />
                   {t('updateParty')}
@@ -740,14 +865,18 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                   {isCustomer ? t('addCustomer') : t('addSupplier')}
                 </>
               )}
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose} className="px-8 border-2">
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-6 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
               {t('common.cancel')}
-            </Button>
+            </button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 };
-

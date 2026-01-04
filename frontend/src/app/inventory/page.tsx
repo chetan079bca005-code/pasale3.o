@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { KPICard } from '../../components/dashboard/KPICard';
+
 import {
   FiPlus,
   FiPackage,
@@ -29,9 +30,14 @@ import {
   FiMoreVertical,
   FiShoppingCart,
   FiArchive,
+  FiLoader,
 } from 'react-icons/fi';
 import { AddProductDialog } from '../../components/inventory/AddProductDialog';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
+import { apiClient, clearTokens, isAuthenticated } from '../../utils/apiClient';
+
+// API Configuration - Use environment variable or fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 interface Product {
   id: string;
@@ -61,19 +67,92 @@ interface StockMovement {
 type ViewMode = 'grid' | 'table';
 
 export default function InventoryPage() {
-  const { t, n, c, language } = useTranslation(); const navigate = useNavigate(); const [products, setProducts] = useState<Product[]>([
-    { id: '1', name: 'Wireless Mouse', quantity: 25, price: 1500, costPrice: 1000, image: null, sku: 'SKU-001', description: 'Ergonomic wireless mouse with USB receiver', category: 'Electronics', status: 'active', minStock: 5, unit: 'pcs' },
-    { id: '2', name: 'USB-C Cable', quantity: 50, price: 500, costPrice: 300, image: null, sku: 'SKU-002', description: 'Fast charging USB-C cable 1m', category: 'Accessories', status: 'active', minStock: 10, unit: 'pcs' },
-    { id: '3', name: 'Laptop Stand', quantity: 3, price: 3500, costPrice: 2500, image: null, sku: 'SKU-003', description: 'Adjustable aluminum laptop stand', category: 'Accessories', status: 'active', minStock: 5, unit: 'pcs' },
-    { id: '4', name: 'Webcam HD', quantity: 12, price: 4500, costPrice: 3200, image: null, sku: 'SKU-004', description: '1080p HD webcam with microphone', category: 'Electronics', status: 'active', minStock: 3, unit: 'pcs' },
-    { id: '5', name: 'Keyboard Wireless', quantity: 0, price: 2500, costPrice: 1800, image: null, sku: 'SKU-005', description: 'Wireless keyboard with Bluetooth', category: 'Electronics', status: 'inactive', minStock: 5, unit: 'pcs' },
-  ]);
+  const { t, n, c, language } = useTranslation(); 
+  const navigate = useNavigate(); 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [movements, setMovements] = useState<StockMovement[]>([
-    { id: 'm1', productId: '1', date: new Date().toISOString(), change: 25, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-    { id: 'm2', productId: '2', date: new Date().toISOString(), change: 50, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-    { id: 'm3', productId: '3', date: new Date().toISOString(), change: 3, notes: 'Initial stock', staff: 'Admin', type: 'in' },
-  ]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+
+  // Check for auth token on mount
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      // No token, redirect to login
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  // Fetch products from API with automatic token refresh
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!isAuthenticated()) {
+        setError('Please login to view products');
+        setIsLoading(false);
+        navigate('/login');
+        return;
+      }
+      
+      // Use apiClient which handles token refresh automatically
+      const data = await apiClient.get('/products/');
+      const apiProducts = data.results || data || [];
+      
+      // Transform API response to frontend format
+      const transformedProducts: Product[] = apiProducts.map((p: any) => ({
+        id: String(p.id),
+        name: p.product_name,
+        quantity: p.quantity,
+        price: parseFloat(p.unit_price),
+        costPrice: parseFloat(p.unit_price) * 0.7, // Estimate cost price
+        image: p.product_Img || null,
+        sku: p.sku || `SKU-${p.id}`,
+        description: p.description || '',
+        category: getCategoryName(p.category),
+        status: p.quantity > 0 ? 'active' : 'inactive',
+        minStock: 10, // Default reorder level
+        unit: 'pcs',
+      }));
+      
+      setProducts(transformedProducts);
+    } catch (err: any) {
+      console.error('Error fetching products:', err);
+      
+      // If auth error after token refresh failed, redirect to login
+      if (err.message?.includes('session') || err.message?.includes('login')) {
+        clearTokens();
+        navigate('/login');
+        return;
+      }
+      
+      setError(err.message || 'Failed to load products. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Map category ID to name
+  const getCategoryName = (categoryId: number): string => {
+    const categoryMap: Record<number, string> = {
+      1: 'Electronics',
+      2: 'Clothing',
+      3: 'Food',
+      4: 'Grocery',
+      5: 'Household',
+      6: 'Beauty',
+      7: 'Medicine',
+      8: 'Stationery',
+      9: 'Hardware',
+      10: 'Other',
+    };
+    return categoryMap[categoryId] || 'Uncategorized';
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrValue, setQrValue] = useState('');
@@ -86,7 +165,7 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [stockFilter, setStockFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
 
   const selectedProduct = useMemo(
@@ -144,29 +223,37 @@ export default function InventoryPage() {
     setShowForm(true);
   };
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'status'>) => {
-    if (isEditing && editingId) {
-      setProducts(products.map(p => p.id === editingId ? { ...p, ...productData, category: productData.category || 'Uncategorized' } : p));
-    } else {
-      const newProduct: Product = {
-        id: Date.now().toString(),
-        ...productData,
-        category: productData.category || 'Uncategorized',
-        sku: productData.sku || `SKU-${Date.now()}`,
-        status: 'active',
-      };
-      setProducts([...products, newProduct]);
-      setMovements((prev) => [
-        { id: `m-${Date.now()}`, productId: newProduct.id, date: new Date().toISOString(), change: newProduct.quantity, notes: 'New product added', staff: 'Admin', type: 'in' },
-        ...prev,
-      ]);
-    }
+  const handleSaveProduct = async (productData: Omit<Product, 'id' | 'status'>) => {
+    // Refresh products from API after successful save
+    await fetchProducts();
     setShowForm(false);
     setIsEditing(false);
     setEditingId(null);
   };
 
-  const handleAdjustStockSubmit = (e: React.FormEvent) => {
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      if (!isAuthenticated()) {
+        alert('Please login to delete products');
+        navigate('/login');
+        return;
+      }
+      
+      await apiClient.delete(`/products/?id=${productId}`);
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error deleting product:', err);
+      if (err.message?.includes('session') || err.message?.includes('login')) {
+        clearTokens();
+        navigate('/login');
+        return;
+      }
+      alert(err.message || 'Failed to delete product. Please try again.');
+    }
+    setSelectedProductId(null);
+  };
+
+  const handleAdjustStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId || !adjustData.change) return;
 
@@ -176,16 +263,36 @@ export default function InventoryPage() {
     if (adjustData.type === 'out') changeAmount = -Math.abs(changeAmount);
     else changeAmount = Math.abs(changeAmount);
 
-    setProducts(products.map(p =>
-      p.id === selectedProductId
-        ? { ...p, quantity: Math.max(0, p.quantity + changeAmount) }
-        : p
-    ));
-
-    setMovements((prev) => [
-      { id: `m-${Date.now()}`, productId: selectedProductId, date: new Date().toISOString(), change: changeAmount, notes: adjustData.notes || 'Manual adjustment', staff: 'Admin', type: adjustData.type },
-      ...prev,
-    ]);
+    // Find the product and calculate new quantity
+    const product = products.find(p => p.id === selectedProductId);
+    if (!product) return;
+    
+    const newQuantity = Math.max(0, product.quantity + changeAmount);
+    
+    // Update via API with automatic token refresh
+    try {
+      if (!isAuthenticated()) {
+        alert('Please login to adjust stock');
+        navigate('/login');
+        return;
+      }
+      
+      await apiClient.put(`/products/?id=${selectedProductId}`, { quantity: newQuantity });
+      
+      await fetchProducts(); // Refresh from API
+      setMovements((prev) => [
+        { id: `m-${Date.now()}`, productId: selectedProductId, date: new Date().toISOString(), change: changeAmount, notes: adjustData.notes || 'Manual adjustment', staff: 'Admin', type: adjustData.type },
+        ...prev,
+      ]);
+    } catch (err: any) {
+      console.error('Error adjusting stock:', err);
+      if (err.message?.includes('session') || err.message?.includes('login')) {
+        clearTokens();
+        navigate('/login');
+        return;
+      }
+      alert(err.message || 'Failed to adjust stock. Please try again.');
+    }
 
     setAdjustData({ change: '', notes: '', type: 'in' });
     setShowAdjustStock(false);
@@ -235,48 +342,89 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 overflow-x-hidden">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 overflow-x-hidden">
       <div className="w-full max-w-1600px mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
-        {/* Header - Interactive Style */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-100 dark:border-amber-800/30 hover:shadow-lg transition-all duration-300 cursor-default flex-1">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform duration-300">
-              <FiPackage className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+        {/* Header - Modern Gradient Style */}
+        <div className="relative overflow-hidden bg-linear-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl p-5 sm:p-6 mb-6 shadow-xl shadow-amber-500/20">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
+          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                <FiPackage className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-white">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
+                  {t('inventory.title')}
+                  <span className="px-3 py-1 rounded-full text-sm font-semibold bg-white/20 backdrop-blur-sm">
+                    {n(products.length)} items
+                  </span>
+                </h1>
+                <p className="text-white/80 text-sm mt-1">{t('inventory.pageDescription')}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                {t('inventory.title')}
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
-                  {t('inventory.stock') || 'Stock'}
-                </span>
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {t('inventory.pageDescription')}
-              </p>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <button
+                onClick={() => fetchProducts()}
+                disabled={isLoading}
+                className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all disabled:opacity-50"
+              >
+                <FiRefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isLoading ? 'Loading...' : 'Refresh'}</span>
+              </button>
+              <button
+                onClick={() => setShowQRModal(true)}
+                className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all"
+              >
+                <FiCamera className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">{t('inventory.scanQR')}</span>
+                <span className="sm:hidden">Scan</span>
+              </button>
+              <button
+                onClick={handleOpenAdd}
+                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold bg-white text-amber-700 hover:bg-amber-50 shadow-lg hover:shadow-xl transition-all"
+              >
+                <FiPlus className="w-5 h-5 mr-2" />
+                {t('inventory.addProduct')}
+              </button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowQRModal(true)}
-              className="border-2 hover:border-purple-500 hover:text-purple-600 transition-all text-xs sm:text-sm"
-            >
-              <FiCamera className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-              <span className="hidden sm:inline">{t('inventory.scanQR')}</span>
-              <span className="sm:hidden">Scan</span>
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleOpenAdd}
-              className="bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all text-xs sm:text-sm"
-            >
-              <FiPlus className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-              {t('inventory.addProduct')}
-            </Button>
           </div>
         </div>
 
+        {/* Loading State */}
+        {isLoading && products.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <FiLoader className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 text-lg">Loading products...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <Card className="p-6 mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-red-600">
+                <FiAlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">{error}</h3>
+                <p className="text-sm text-red-600 dark:text-red-400">Please try refreshing or check your connection.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchProducts()}
+                className="ml-auto border-red-200 dark:border-red-700 text-red-600"
+              >
+                <FiRefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Main Content - Only show when not loading */}
+        {!isLoading && !error && (
+          <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <KPICard
             title={t('inventory.totalProducts')}
@@ -317,33 +465,6 @@ export default function InventoryPage() {
             isCurrency={false}
           />
         </div>
-
-        {/* Low Stock Alert */}
-        {lowStockProducts.length > 0 && (
-          <Card className="p-3 sm:p-4 mb-4 sm:mb-6 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-200 dark:border-amber-800">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg sm:rounded-xl flex items-center justify-center text-amber-600 shrink-0">
-                <FiAlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-1.5 sm:mb-2 text-sm sm:text-base">
-                  {t('inventory.lowStockAlert')} ({n(lowStockProducts.length)} {t('inventory.items')})
-                </h3>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {lowStockProducts.map((product) => (
-                    <button
-                      key={product.id}
-                      onClick={() => setSelectedProductId(product.id)}
-                      className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white dark:bg-gray-800 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-amber-200 dark:border-amber-700"
-                    >
-                      {product.name}: {n(product.quantity)} {t('inventory.left')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
 
         {/* Filters and Search */}
         <Card className="p-3 sm:p-4 mb-4 sm:mb-6">
@@ -822,6 +943,8 @@ export default function InventoryPage() {
               </div>
             </Card>
           </div>
+        )}
+        </>
         )}
 
         {/* Adjust Stock Modal */}

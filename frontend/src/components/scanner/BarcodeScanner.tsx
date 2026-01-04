@@ -53,6 +53,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
             Use a USB barcode scanner or enter the barcode manually
           </p>
         </div>
+        
 
         <div className="space-y-6">
           {/* Mode Selector */}
@@ -120,19 +121,18 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           )}
         </div>
 
-        {/* Common Barcodes Quick Reference */}
+        {/* Scanner Help */}
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
           <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
-            💡 Test Barcodes (for demo):
+            💡 How to scan:
           </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <code className="px-2 py-1 bg-white dark:bg-gray-800 rounded">8901234567890</code>
-            <code className="px-2 py-1 bg-white dark:bg-gray-800 rounded">5901234123457</code>
-            <code className="px-2 py-1 bg-white dark:bg-gray-800 rounded">9876543210123</code>
-            <code className="px-2 py-1 bg-white dark:bg-gray-800 rounded">1234567890128</code>
-          </div>
+          <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+            <li>• Enter the product barcode/SKU from your inventory</li>
+            <li>• Use a USB barcode scanner for faster input</li>
+            <li>• Products must be added to inventory first</li>
+          </ul>
         </div>
       </Card>
     </div>
   );
-};
+}
