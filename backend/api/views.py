@@ -5,8 +5,8 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.mail import send_mail
 import random
-from .models import Customer, Party, Product, Supplier, UserProfile, Expense
-from .serializers import ProductSerializer, PartySerializer, CustomerSerializer, SupplierSerializer, ExpenseSerializer
+from .models import Customer, Party, Product, Supplier, UserProfile, Expense, Billing, BillingItem
+from .serializers import ProductSerializer, PartySerializer, CustomerSerializer, SupplierSerializer, ExpenseSerializer, BillingSerializer, BillingItemSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from datetime import timedelta
@@ -534,3 +534,80 @@ class ApiExpenseView(APIView):
 
         expense.delete()
         return Response({'message': 'Expense deleted successfully!'}, status=status.HTTP_200_OK)
+
+
+class ApiBillingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        billings = Billing.objects.filter(user=request.user)
+        result_page = paginator.paginate_queryset(billings, request)
+        serializer = BillingSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    
+    def post(self, request, *args, **kwargs):
+        billing_data = request.data.copy()
+        billing_data['user'] = request.user.id
+        try:
+            with transaction.atomic():
+                serializer = BillingSerializer(data=billing_data)
+                if serializer.is_valid():
+                    billing = serializer.save()
+
+                    # If there are billing items, create them
+                    items_data = request.data.pop('items', [])
+                    if not items_data:
+                        return Response({'error': 'At least one billing item is required.'},
+                                         status=status.HTTP_400_BAD_REQUEST)
+                    for item_data in items_data:
+                        item_data['billing'] = billing.id
+                        item_serializer = BillingItemSerializer(data=item_data)
+                        if item_serializer.is_valid():
+                            item_serializer.save()
+                        else:
+                            return Response(item_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+                    return Response({'message': 'Billing created successfully!',
+                                     'billing': BillingSerializer(billing).data}, status=status.HTTP_201_CREATED)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except ValueError as ve:
+            return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    def put(self, request, *args, **kwargs):
+        billing_id = request.query_params.get('id')
+        if not billing_id:
+            return Response({'error': 'Billing ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            billing_id = int(billing_id)
+            billing = Billing.objects.get(id=billing_id, user=request.user)
+        except ValueError:
+            return Response({'error': 'Invalid Billing ID'}, status=status.HTTP_400_BAD_REQUEST)
+        except Billing.DoesNotExist:
+            return Response({'error': 'Billing not found or you do not have permission to edit it.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = BillingSerializer(
+            billing, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Billing updated successfully!',
+                             'billing': serializer.data}, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+    def delete(self, request, *args, **kwargs):
+        billing_id = request.query_params.get('id')
+        if not billing_id:
+            return Response({'error': 'Billing ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            billing = Billing.objects.get(id=billing_id, user=request.user)
+        except Billing.DoesNotExist:
+            return Response({'error': 'Billing not found or you do not have permission to delete it.'}, status=status.HTTP_404_NOT_FOUND)
+
+        billing.delete()
+        return Response({'message': 'Billing deleted successfully!'}, status=status.HTTP_200_OK)

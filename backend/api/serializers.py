@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Product, Party, Customer, Supplier, SupplierInfo, Expense
+from .models import Billing, BillingItem, UserProfile, Product, Party, Customer, Supplier, SupplierInfo, Expense
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -50,3 +50,13 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = ['id', 'user', 'amount', 'description', 'date', 'category', 'is_necessary']
+
+class BillingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Billing
+        fields = "__all__"
+
+class BillingItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BillingItem
+        fields = "__all__"

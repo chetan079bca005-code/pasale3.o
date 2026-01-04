@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -139,3 +140,69 @@ class Expense(models.Model):
 
     def __str__(self):
         return self.user.username
+
+class Billing(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='billings')
+    
+    # Invoice details
+    invoice_number = models.CharField(max_length=50, unique=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    payment_choices = [
+        ('Cash', 'Cash'),
+        ('Credit Card', 'Credit Card'),
+        ('Bank Transfer', 'Bank Transfer'),
+        ('UPI', 'UPI'),
+    ]
+    payment_method = models.CharField(max_length=20, choices=payment_choices, blank=True, null=True)
+    invoice_choices = [
+        ('Paid', 'Paid'),
+        ('Unpaid', 'Unpaid'),
+        ('Pending', 'Pending'),
+        ('Draft', 'Draft'),
+    ]
+    invoice_status = models.CharField(max_length=20, choices=invoice_choices, default='Draft')
+    # Customer details
+    party= models.ForeignKey(Party, on_delete=models.CASCADE, related_name='billings', null=True, blank=True)
+    phone= models.CharField(max_length=15, blank=True, null=True)
+    VAt_number= models.CharField(max_length=50, blank=True, null=True)
+    address= models.TextField(blank=True, null=True)
+    # Items and amounts
+    
+    #Summary
+    notes= models.TextField(blank=True, null=True)
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    due_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    tax = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    sub_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+
+    def calculate_totals(self):
+        """Calculate subtotal from all invoice items"""
+        self.subtotal = sum(item.total_price for item in self.items.all())
+        self.total = self.subtotal - self.discount + self.tax_vat
+        self.save()
+
+    def __str__(self):
+        return self.user.username
+    
+class BillingItem(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='items')
+    item = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='billing_items')
+    quantity = models.PositiveIntegerField()
+    rate = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_percentage = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    tax_percentage = models.DecimalField(max_digits=10, decimal_places=2, default=13.00)
+    total_price = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    def save(self, *args, **kwargs):
+        """Auto-calculate total_price before saving"""
+        self.total_price = self.quantity * self.rate
+        super().save(*args, **kwargs)
+        self.billing.calculate_totals()
+        
+    def __str__(self):
+        return f"Item {self.id} for Billing {self.billing.id}"

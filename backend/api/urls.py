@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import SignupView, VerifySignupOtpView, VerifyLoginOtpView, ApiProductView, LoginView, ApiPartyView, ApiExpenseView
+from .views import SignupView, VerifySignupOtpView, VerifyLoginOtpView, ApiProductView, LoginView, ApiPartyView, ApiExpenseView, ApiBillingView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -17,4 +17,7 @@ urlpatterns = [
 
     path('expenses/', ApiExpenseView.as_view(), name='ApiExpenseView'),
     path('expenses/<int:expense_id>', ApiExpenseView.as_view(), name='ApiExpenseView'),
+
+    path('billing/', ApiBillingView.as_view(), name='ApiBillingView'),
+    path('billing/<int:billing_id>', ApiBillingView.as_view(), name='ApiBillingView'),
 ]
