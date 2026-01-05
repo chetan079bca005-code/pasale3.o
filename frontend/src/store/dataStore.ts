@@ -10,6 +10,8 @@ export interface Transaction {
   partyId?: string;
   partyName?: string;
   items?: TransactionItem[];
+  notes?: string;
+  transactionNumber?: string;
 }
 
 export interface TransactionItem {

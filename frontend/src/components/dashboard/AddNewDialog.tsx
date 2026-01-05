@@ -318,10 +318,9 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
 
           <div className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Sales Button */}
               <button
                 onClick={() => setDialogType('selling')}
-                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 dark:border-gray-700 dark:hover:border-emerald-500/50 dark:hover:bg-emerald-900/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-emerald-500/50 dark:hover:bg-emerald-900/20 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <FiTrendingUp className="w-6 h-6" />
@@ -335,7 +334,7 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
               {/* Purchase Button */}
               <button
                 onClick={() => setDialogType('purchase')}
-                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 dark:border-gray-700 dark:hover:border-blue-500/50 dark:hover:bg-blue-900/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-blue-500 hover:bg-blue-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-blue-500/50 dark:hover:bg-blue-900/20 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <FiShoppingCart className="w-6 h-6" />
@@ -349,7 +348,7 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
               {/* Expense Button */}
               <button
                 onClick={() => setDialogType('expense')}
-                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-100 hover:border-red-500 hover:bg-red-50 dark:border-gray-700 dark:hover:border-red-500/50 dark:hover:bg-red-900/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-red-500 hover:bg-red-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-red-500/50 dark:hover:bg-red-900/20 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <FiCreditCard className="w-6 h-6" />
@@ -363,7 +362,7 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
               {/* Create Invoice Button */}
               <button
                 onClick={handleCreateBill}
-                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-100 hover:border-purple-500 hover:bg-purple-50 dark:border-gray-700 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-purple-500 hover:bg-purple-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <FiFileText className="w-6 h-6" />
@@ -372,6 +371,7 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
                   <h3 className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-purple-700 dark:group-hover:text-purple-400">Create Invoice</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate bill</p>
                 </div>
+
               </button>
             </div>
           </div>
@@ -1055,7 +1055,7 @@ export const AddNewDialog: React.FC<AddNewDialogProps> = ({ onClose }) => {
                 </label>
                 <div className="relative">
                   <select
-                    className={`w-full pl-3 pr-10 py-2.5 border-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white bg-white dark:bg-gray-800 outline-none transition-all appearance-none text-sm ${focusRing[config.color].replace('focus:ring-', 'focus:border-').replace('focus:ring', 'focus:border')} border-gray-200 dark:border-gray-600`}
+                    className={`w-full pl-3 pr-10 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 outline-none transition-all appearance-none text-sm ${focusRing[config.color].replace('focus:ring-', 'focus:border-').replace('focus:ring', 'focus:border')} border-gray-200 dark:border-gray-600`}
                     required
                   >
                     <option value="">Select a party</option>

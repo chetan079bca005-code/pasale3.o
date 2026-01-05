@@ -1,3 +1,4 @@
+/* Google Fonts - will gracefully fallback to system fonts if offline */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
@@ -10,7 +11,8 @@
 
   html {
     @apply w-full h-full m-0 p-0 scroll-smooth;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    /* Inter font with robust system font fallbacks for offline use */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   }
 
   body {

@@ -4,6 +4,7 @@ import { useTranslation } from '../../utils/i18n';
 import { Button } from '../../components/ui/Button';
 import { LanguageSwitcher } from '../../components/layout/LanguageSwitcher';
 import { ThemeSwitcher } from '../../components/layout/ThemeSwitcher';
+import { authApi } from '../../utils/api';
 import { 
   FiMail, 
   FiLock, 
@@ -17,9 +18,6 @@ import {
   FiBriefcase,
   FiCheck
 } from 'react-icons/fi';
-
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 type SignupStep = 'form' | 'otp' | 'success';
 
@@ -105,6 +103,9 @@ export default function SignupPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Store debug OTP for development testing
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -112,36 +113,22 @@ export default function SignupPage() {
     
     setIsLoading(true);
     setApiError(null);
+    setDebugOtp(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/signup/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const response = await authApi.signup(formData);
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Move to OTP step
-        setStep('otp');
-        setOtp(['', '', '', '', '', '']);
-      } else {
-        // Handle Django validation errors
-        let errorMessage = 'Signup failed';
-        if (data.error) {
-          errorMessage = data.error;
-        } else if (data.username) {
-          errorMessage = data.username[0];
-        } else if (data.email) {
-          errorMessage = data.email[0];
-        } else if (data.password) {
-          errorMessage = data.password[0];
-        }
-        setApiError(errorMessage);
+      // Store debug OTP if available (development mode)
+      if (response.debug_otp) {
+        setDebugOtp(response.debug_otp);
+        console.log('Debug OTP:', response.debug_otp);
       }
+      
+      // Move to OTP step
+      setStep('otp');
+      setOtp(['', '', '', '', '', '']);
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
       setIsLoading(false);
     }
@@ -198,28 +185,18 @@ export default function SignupPage() {
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/verify-signup-otp/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: otpCode,
-        }),
+      await authApi.verifySignupOtp({
+        email: formData.email,
+        otp: otpCode,
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Show success and redirect to login
-        setStep('success');
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
-      } else {
-        setApiError(data.error || 'OTP verification failed');
-      }
+      // Show success and redirect to login
+      setStep('success');
+      setTimeout(() => {
+        navigate('/login');
+      }, 3000);
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'OTP verification failed');
     } finally {
       setIsLoading(false);
     }
@@ -230,22 +207,12 @@ export default function SignupPage() {
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/signup/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      await authApi.signup(formData);
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        setOtp(['', '', '', '', '', '']);
-        setApiError(null);
-      } else {
-        setApiError(data.error || 'Failed to resend OTP');
-      }
+      setOtp(['', '', '', '', '', '']);
+      setApiError(null);
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'Failed to resend OTP');
     } finally {
       setIsLoading(false);
     }
@@ -474,6 +441,14 @@ export default function SignupPage() {
                   Enter the 6-digit code sent to <br />
                   <span className="font-medium text-gray-700 dark:text-gray-300">{formData.email}</span>
                 </p>
+                {/* Debug OTP Display - only in development */}
+                {debugOtp && (
+                  <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                      <span className="font-semibold">Dev Mode OTP:</span> <span className="font-mono text-lg">{debugOtp}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* API Error Display */}

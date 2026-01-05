@@ -24,6 +24,109 @@ const getAuthToken = (): string | null => {
   return null;
 };
 
+// ================================
+// AUTH API
+// ================================
+
+export interface SignupData {
+  username: string;
+  email: string;
+  password: string;
+  phone_no: string;
+  business_name: string;
+}
+
+export interface LoginData {
+  email: string;
+  password: string;
+}
+
+export interface OtpVerifyData {
+  email: string;
+  otp: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  access?: string;
+  refresh?: string;
+  error?: string;
+  otp_sent?: boolean;
+  debug_otp?: string;  // Only available in development mode
+}
+
+export const authApi = {
+  // Signup - creates user and sends OTP
+  signup: async (data: SignupData): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/signup/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || result.username?.[0] || result.email?.[0] || 'Signup failed');
+    }
+    return result;
+  },
+
+  // Verify signup OTP
+  verifySignupOtp: async (data: OtpVerifyData): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/verify-signup-otp/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'OTP verification failed');
+    }
+    return result;
+  },
+
+  // Login - sends OTP to email
+  login: async (data: LoginData): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Login failed');
+    }
+    return result;
+  },
+
+  // Verify login OTP - returns tokens
+  verifyLoginOtp: async (data: OtpVerifyData): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/verify-login-otp/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'OTP verification failed');
+    }
+    return result;
+  },
+
+  // Refresh token
+  refreshToken: async (refreshToken: string): Promise<{ access: string }> => {
+    const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Token refresh failed');
+    }
+    return result;
+  },
+};
+
 // Generic fetch wrapper with auth
 const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Response> => {
   const token = getAuthToken();
@@ -311,9 +414,149 @@ export const clearAuthTokens = () => {
   }
 };
 
+// ================================
+// BILLING API
+// ================================
+
+export interface BillingItemData {
+  item: number; // Product ID
+  quantity: number;
+  rate: number;
+  discount_percentage?: number;
+  tax_percentage?: number;
+  total_price: number;
+}
+
+export interface BillingData {
+  invoice_number: string;
+  invoice_date?: string;
+  due_date?: string;
+  payment_method?: 'Cash' | 'Credit Card' | 'Bank Transfer' | 'UPI';
+  invoice_status?: 'Paid' | 'Unpaid' | 'Pending' | 'Draft';
+  party?: number;
+  phone?: string;
+  VAt_number?: string;
+  address?: string;
+  notes?: string;
+  paid_amount?: number;
+  due_amount?: number;
+  total_amount?: number;
+  discount?: number;
+  tax?: number;
+  sub_total?: number;
+  items: BillingItemData[];
+}
+
+export interface BillingResponse {
+  message: string;
+  billing: {
+    id: number;
+    user: number;
+    invoice_number: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    payment_method: string | null;
+    invoice_status: string;
+    party: number | null;
+    phone: string | null;
+    VAt_number: string | null;
+    address: string | null;
+    notes: string | null;
+    paid_amount: string;
+    due_amount: string;
+    total_amount: string;
+    discount: string;
+    tax: string;
+    sub_total: string;
+  };
+}
+
+export interface BillingListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Array<{
+    id: number;
+    user: number;
+    invoice_number: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    payment_method: string | null;
+    invoice_status: string;
+    party: number | null;
+    phone: string | null;
+    VAt_number: string | null;
+    address: string | null;
+    notes: string | null;
+    paid_amount: string;
+    due_amount: string;
+    total_amount: string;
+    discount: string;
+    tax: string;
+    sub_total: string;
+  }>;
+}
+
+export const billingApi = {
+  // Get all billings
+  getAll: async (): Promise<BillingListResponse> => {
+    const response = await fetchWithAuth('/billing/');
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Get single billing by ID
+  getById: async (id: number): Promise<BillingResponse> => {
+    const response = await fetchWithAuth(`/billing/?id=${id}`);
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Create new billing/invoice
+  create: async (data: BillingData): Promise<BillingResponse> => {
+    const response = await fetchWithAuth('/billing/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Update billing
+  update: async (id: number, data: Partial<BillingData>): Promise<BillingResponse> => {
+    const response = await fetchWithAuth(`/billing/?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Delete billing
+  delete: async (id: number): Promise<{ message: string }> => {
+    const response = await fetchWithAuth(`/billing/?id=${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+};
+
 export default {
+  auth: authApi,
   party: partyApi,
   expense: expenseApi,
+  billing: billingApi,
   setAuthTokens,
   clearAuthTokens,
 };

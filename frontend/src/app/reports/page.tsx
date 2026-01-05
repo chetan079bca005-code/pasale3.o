@@ -375,10 +375,10 @@ export default function ReportsPage() {
       const reportName = selectedReport ? reportCards.find(c => c.id === selectedReport)?.title : 'Report';
       const subject = encodeURIComponent(`${reportName} - ${dateRange.startDate} to ${dateRange.endDate}`);
       const body = encodeURIComponent(`Please find the attached ${reportName} report.\n\nDate Range: ${dateRange.startDate} to ${dateRange.endDate}\n\nGenerated from Pasale Business Management\n${new Date().toLocaleDateString()}`);
-      
+
       // Open email client
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
-      
+
       // Also trigger download of PDF for reference
       setTimeout(() => {
         handleDownload('pdf');
@@ -538,7 +538,7 @@ export default function ReportsPage() {
                   <Button variant="outline" size="sm" className="sm:size-auto" title={t('reports.download') || 'Download'}>
                     <FiDownload className="w-4 h-4" />
                   </Button>
-                  <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-100 border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                       <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('reports.exportAs') || 'Export As'}</p>
                     </div>

@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { BarcodeScanner } from '../../components/scanner/BarcodeScanner';
 import { InvoiceDetail } from '../../components/billing/InvoiceDetail';
+import { billingApi, partyApi, BillingData, BillingItemData } from '../../utils/api';
 import {
   FiPlus,
   FiTrash2,
@@ -24,6 +25,7 @@ import {
   FiX,
   FiCheck,
   FiChevronDown,
+  FiLoader,
 } from 'react-icons/fi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
@@ -116,10 +118,49 @@ export default function BillingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [apiCustomers, setApiCustomers] = useState<Array<{
+    id: number;
+    party_id: number;
+    name: string;
+    phone_no: string | null;
+    email: string | null;
+    address: string | null;
+    Customer_code: string | null;
+    open_balance: string;
+  }>>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const customers = parties.filter((p) => p.type === 'customer');
-  const selectedCustomer = customers.find((c) => c.id === customerId);
+
+  // Combine local parties with API customers
+  const localCustomers = parties.filter((p) => p.type === 'customer');
+  const allCustomers = useMemo(() => {
+    const combined = [
+      ...localCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone || '',
+        address: c.address || '',
+        balance: c.balance || 0,
+        isLocal: true,
+        party_id: undefined as number | undefined,
+      })),
+      ...apiCustomers.map(c => ({
+        id: `api-${c.party_id}`,
+        name: c.name,
+        phone: c.phone_no || '',
+        address: c.address || '',
+        balance: parseFloat(c.open_balance) || 0,
+        isLocal: false,
+        party_id: c.party_id,
+      }))
+    ];
+    return combined;
+  }, [localCustomers, apiCustomers]);
+
+  const selectedCustomer = allCustomers.find((c) => c.id === customerId);
 
   // Load transaction data from URL params
   useEffect(() => {
@@ -133,7 +174,7 @@ export default function BillingPage() {
         if (transaction.partyId) {
           setCustomerId(transaction.partyId);
         }
-        
+
         // Set items from transaction
         if (transaction.items && transaction.items.length > 0) {
           const invoiceItems: InvoiceItem[] = transaction.items.map((item: any, index: number) => ({
@@ -162,10 +203,10 @@ export default function BillingPage() {
 
         // Generate new invoice number based on transaction
         setInvoiceNumber(`INV-${transaction.transactionNumber || transaction.id}`);
-        
+
         setDataLoaded(true);
       }
-    } 
+    }
     // If only partyId is provided, just set the customer
     else if (partyIdParam) {
       setCustomerId(partyIdParam);
@@ -210,6 +251,53 @@ export default function BillingPage() {
       }
     };
     fetchProducts();
+  }, []);
+
+  // Fetch Customers from API
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setCustomersLoading(true);
+      try {
+        const response = await partyApi.getAll('Customer');
+        const customersData: Array<{
+          id: number;
+          party_id: number;
+          name: string;
+          phone_no: string | null;
+          email: string | null;
+          address: string | null;
+          Customer_code: string | null;
+          open_balance: string;
+        }> = [];
+
+        // For each party, we need to get the customer details
+        for (const party of response.results || []) {
+          try {
+            const partyDetails = await partyApi.getById(party.id);
+            if (partyDetails.customer) {
+              customersData.push({
+                id: partyDetails.customer.id,
+                party_id: party.id,
+                name: partyDetails.customer.name,
+                phone_no: partyDetails.customer.phone_no,
+                email: partyDetails.customer.email,
+                address: partyDetails.customer.address,
+                Customer_code: partyDetails.customer.Customer_code,
+                open_balance: partyDetails.customer.open_balance,
+              });
+            }
+          } catch {
+            // Skip this party if we can't get details
+          }
+        }
+        setApiCustomers(customersData);
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+      } finally {
+        setCustomersLoading(false);
+      }
+    };
+    fetchCustomers();
   }, []);
 
   // Filter Products
@@ -335,32 +423,129 @@ export default function BillingPage() {
     setShowAddCustomer(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const valid = items.filter(i => i.description && i.quantity > 0);
     if (!valid.length) {
       alert('Please add at least one item');
       return;
     }
 
-    addTransaction({
-      id: invoiceNumber,
-      type: 'selling',
-      amount: grandTotal,
-      date: new Date(invoiceDate).toISOString(),
-      description: `Invoice ${invoiceNumber}`,
-      partyId: customerId || undefined,
-      partyName: selectedCustomer?.name || 'Walk-in Customer',
-      items: valid.map(i => ({
-        id: i.id,
-        name: i.description,
-        quantity: i.quantity,
-        price: i.rate,
-        total: i.total
-      }))
-    });
+    setIsSaving(true);
+    setSaveError(null);
 
-    alert('Invoice saved successfully!');
-    resetForm();
+    try {
+      // Map payment method to API format
+      const paymentMethodMap: Record<PaymentMethod, 'Cash' | 'Credit Card' | 'Bank Transfer' | 'UPI'> = {
+        'cash': 'Cash',
+        'card': 'Credit Card',
+        'bank': 'Bank Transfer',
+        'upi': 'UPI',
+        'credit': 'Cash', // Default to Cash for credit
+      };
+
+      // Map status to API format
+      const statusMap: Record<InvoiceStatus, 'Paid' | 'Unpaid' | 'Pending' | 'Draft'> = {
+        'draft': 'Draft',
+        'pending': 'Pending',
+        'paid': 'Paid',
+        'unpaid': 'Unpaid',
+        'cancelled': 'Draft', // Map cancelled to Draft
+      };
+
+      // Prepare billing items - need product IDs
+      const billingItems: BillingItemData[] = valid.map(item => {
+        // Try to find the product ID from the products list
+        const product = products.find(p => p.name === item.description);
+        // Use the product id if found, otherwise use 0 (backend will handle it)
+        const productId = product ? parseInt(product.id) : 0;
+        return {
+          item: productId || undefined, // Send undefined if no product found
+          quantity: item.quantity,
+          rate: item.rate,
+          discount_percentage: item.discountType === 'percent' ? item.discount : 0,
+          tax_percentage: item.tax,
+          total_price: item.total,
+        } as BillingItemData;
+      }).filter(item => item.item); // Only include items with valid product IDs
+
+      // If no items have valid product IDs, show error
+      if (billingItems.length === 0) {
+        // Try to save without items if no products exist
+        console.warn('No products found in database. Saving invoice without product links.');
+      }
+
+      // Get party ID if customer is from API
+      const partyId = selectedCustomer?.party_id;
+
+      const billingData: BillingData = {
+        invoice_number: invoiceNumber,
+        invoice_date: invoiceDate,
+        due_date: dueDate,
+        payment_method: paymentMethodMap[paymentMethod],
+        invoice_status: statusMap[invoiceStatus],
+        party: partyId,
+        phone: customerPhone || undefined,
+        VAt_number: customerVat || undefined,
+        address: customerAddress || undefined,
+        notes: notes || undefined,
+        paid_amount: paidAmount,
+        due_amount: balanceDue,
+        total_amount: grandTotal,
+        discount: totalDiscount,
+        tax: totalTax,
+        sub_total: subtotal,
+        items: billingItems,
+      };
+
+      await billingApi.create(billingData);
+
+      // Also save to local store for offline support
+      addTransaction({
+        id: invoiceNumber,
+        type: 'selling',
+        amount: grandTotal,
+        date: new Date(invoiceDate).toISOString(),
+        description: `Invoice ${invoiceNumber}`,
+        partyId: customerId || undefined,
+        partyName: selectedCustomer?.name || 'Walk-in Customer',
+        items: valid.map(i => ({
+          id: i.id,
+          name: i.description,
+          quantity: i.quantity,
+          price: i.rate,
+          total: i.total
+        }))
+      });
+
+      alert('Invoice saved successfully!');
+      resetForm();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save invoice';
+      setSaveError(errorMessage);
+
+      // Still save locally if API fails
+      addTransaction({
+        id: invoiceNumber,
+        type: 'selling',
+        amount: grandTotal,
+        date: new Date(invoiceDate).toISOString(),
+        description: `Invoice ${invoiceNumber}`,
+        partyId: customerId || undefined,
+        partyName: selectedCustomer?.name || 'Walk-in Customer',
+        items: valid.map(i => ({
+          id: i.id,
+          name: i.description,
+          quantity: i.quantity,
+          price: i.rate,
+          total: i.total
+        }))
+      });
+
+      alert(`Invoice saved locally. API Error: ${errorMessage}`);
+      resetForm();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const resetForm = () => {
@@ -486,8 +671,8 @@ export default function BillingPage() {
                       type="button"
                       onClick={() => setInvoiceStatus(status.value)}
                       className={`px-4 h-11 rounded-lg text-sm font-medium transition-all ${invoiceStatus === status.value
-                          ? status.color + ' ring-2 ring-offset-2 ring-blue-500'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        ? status.color + ' ring-2 ring-offset-2 ring-blue-500'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                     >
                       {status.label}
@@ -518,13 +703,21 @@ export default function BillingPage() {
                     value={customerId}
                     onChange={e => setCustomerId(e.target.value)}
                     className={`${inputClass} pr-10 appearance-none`}
+                    disabled={customersLoading}
                   >
                     <option value="">Select Customer (Walk-in)</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    {customersLoading && <option disabled>Loading customers...</option>}
+                    {allCustomers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''} {!c.isLocal ? '✓' : ''}
+                      </option>
                     ))}
                   </select>
-                  <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  {customersLoading ? (
+                    <FiLoader className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
+                  ) : (
+                    <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  )}
                 </div>
               </div>
 
@@ -772,7 +965,17 @@ export default function BillingPage() {
           <div className="lg:hidden sticky bottom-0 bg-white dark:bg-gray-800 p-4 border-t border-gray-200 dark:border-gray-700 -mx-4 -mb-4 flex gap-3">
             <Button variant="outline" className="flex-1" onClick={() => navigate('/dashboard')}>Cancel</Button>
             <Button variant="outline" className="flex-1" onClick={handlePrint}><FiPrinter className="mr-2" />Print</Button>
-            <Button className="flex-1 bg-blue-600 text-white" onClick={handleSave}><FiSave className="mr-2" />Save</Button>
+            <Button
+              className="flex-1 bg-blue-600 text-white"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <><FiLoader className="mr-2 animate-spin" />Saving...</>
+              ) : (
+                <><FiSave className="mr-2" />Save</>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -786,8 +989,17 @@ export default function BillingPage() {
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <FiPrinter className="mr-2 w-4 h-4" /> Print
               </Button>
-              <Button size="sm" onClick={handleSave} className="bg-blue-600 text-white hover:bg-blue-700">
-                <FiSave className="mr-2 w-4 h-4" /> Save
+              <Button
+                size="sm"
+                onClick={handleSave}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <><FiLoader className="mr-2 w-4 h-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><FiSave className="mr-2 w-4 h-4" /> Save</>
+                )}
               </Button>
             </div>
           </div>

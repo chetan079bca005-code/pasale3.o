@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Button } from '../../components/ui/Button';
 import { LanguageSwitcher } from '../../components/layout/LanguageSwitcher';
 import { ThemeSwitcher } from '../../components/layout/ThemeSwitcher';
+import { authApi } from '../../utils/api';
 import { 
   FiMail, 
   FiLock, 
@@ -14,9 +15,6 @@ import {
   FiArrowLeft,
   FiAlertCircle
 } from 'react-icons/fi';
-
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 type LoginStep = 'credentials' | 'otp';
 
@@ -39,6 +37,9 @@ export default function LoginPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Store debug OTP for development testing
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
 
   useEffect(() => {
     setIsVisible(true);
@@ -83,28 +84,25 @@ export default function LoginPage() {
     
     setIsLoading(true);
     setApiError(null);
+    setDebugOtp(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      const response = await authApi.login({
+        email: formData.email,
+        password: formData.password,
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Move to OTP step
-        setStep('otp');
-        setOtp(['', '', '', '', '', '']);
-      } else {
-        setApiError(data.error || data.message || 'Login failed');
+      // Store debug OTP if available (development mode)
+      if (response.debug_otp) {
+        setDebugOtp(response.debug_otp);
+        console.log('Debug OTP:', response.debug_otp);
       }
+      
+      // Move to OTP step
+      setStep('otp');
+      setOtp(['', '', '', '', '', '']);
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -161,46 +159,36 @@ export default function LoginPage() {
     setApiError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/verify-login-otp/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: otpCode,
-        }),
+      const data = await authApi.verifyLoginOtp({
+        email: formData.email,
+        otp: otpCode,
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Store tokens in auth store (this persists to localStorage)
-        if (data.access && data.refresh) {
-          authStore.setTokens(data.access, data.refresh);
-        }
-        
-        // Also store in legacy location for backwards compatibility
-        if (data.access) {
-          localStorage.setItem('auth_token', data.access);
-        }
-        if (data.refresh) {
-          localStorage.setItem('refresh_token', data.refresh);
-        }
-        
-        // Update auth store and navigate
-        authStore.updateUserProfile({
-          name: formData.email.split('@')[0],
-          email: formData.email,
-          phone: '',
-          photo: null,
-        });
-        authStore.login();
-        authStore.completeOnboarding();
-        navigate('/dashboard');
-      } else {
-        setApiError(data.error || 'OTP verification failed');
+      // Store tokens in auth store (this persists to localStorage)
+      if (data.access && data.refresh) {
+        authStore.setTokens(data.access, data.refresh);
       }
+      
+      // Also store in legacy location for backwards compatibility
+      if (data.access) {
+        localStorage.setItem('auth_token', data.access);
+      }
+      if (data.refresh) {
+        localStorage.setItem('refresh_token', data.refresh);
+      }
+      
+      // Update auth store and navigate
+      authStore.updateUserProfile({
+        name: formData.email.split('@')[0],
+        email: formData.email,
+        phone: '',
+        photo: null,
+      });
+      authStore.login();
+      authStore.completeOnboarding();
+      navigate('/dashboard');
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'OTP verification failed');
     } finally {
       setIsLoading(false);
     }
@@ -209,27 +197,24 @@ export default function LoginPage() {
   const handleResendOtp = async () => {
     setIsLoading(true);
     setApiError(null);
+    setDebugOtp(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      const response = await authApi.login({
+        email: formData.email,
+        password: formData.password,
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        setOtp(['', '', '', '', '', '']);
-        setApiError(null);
-      } else {
-        setApiError(data.error || 'Failed to resend OTP');
+      // Store debug OTP if available (development mode)
+      if (response.debug_otp) {
+        setDebugOtp(response.debug_otp);
+        console.log('Debug OTP (resend):', response.debug_otp);
       }
+      
+      setOtp(['', '', '', '', '', '']);
+      setApiError(null);
     } catch (err) {
-      setApiError('Network error. Please try again.');
+      setApiError(err instanceof Error ? err.message : 'Failed to resend OTP');
     } finally {
       setIsLoading(false);
     }
@@ -395,6 +380,14 @@ export default function LoginPage() {
                   Enter the 6-digit code sent to <br />
                   <span className="font-medium text-gray-700 dark:text-gray-300">{formData.email}</span>
                 </p>
+                {/* Debug OTP Display - only in development */}
+                {debugOtp && (
+                  <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                      <span className="font-semibold">Dev Mode OTP:</span> <span className="font-mono text-lg">{debugOtp}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* API Error Display */}

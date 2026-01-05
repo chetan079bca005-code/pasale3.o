@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
-// Only Dark and Light modes supported - Dark is the default
-export type Theme = 'light' | 'dark';
+// Basic Dark and Light modes supported, plus Classic specific overrides
+export type Theme = 'light' | 'classic' | 'dark';
 
 interface ThemeState {
   theme: Theme;
@@ -11,9 +11,8 @@ interface ThemeState {
 
 const getStoredTheme = (): Theme => {
   if (typeof window === 'undefined') return 'dark';
-  const stored = localStorage.getItem('pasale-theme');
-  // Only allow 'light' or 'dark', default to 'dark'
-  if (stored === 'light') return 'light';
+  const stored = localStorage.getItem('pasale-theme') as Theme;
+  if (['light', 'classic', 'dark'].includes(stored)) return stored;
   return 'dark';
 };
 
@@ -23,21 +22,31 @@ export const useThemeStore = create<ThemeState>((set) => ({
     if (typeof window !== 'undefined') {
       localStorage.setItem('pasale-theme', theme);
       // Update document class for theme
-      document.documentElement.classList.remove('light', 'dark');
-      if (theme === 'dark') {
+      document.documentElement.classList.remove('light', 'dark', 'classic');
+
+      if (theme === 'dark' || theme === 'classic') {
         document.documentElement.classList.add('dark');
       }
+      if (theme === 'classic') {
+        document.documentElement.classList.add('classic');
+      }
+
       document.documentElement.setAttribute('data-theme', theme);
     }
     set({ theme });
   },
   toggleTheme: () => {
     set((state) => {
-      // Simple toggle between dark and light
-      const newTheme: Theme = state.theme === 'dark' ? 'light' : 'dark';
+      // Cycle: light -> dark -> classic -> light
+      // Or simple toggle light <-> dark if only using those. 
+      // Given visual switcher exists, we can stick to simple light/dark toggle or cycle.
+      // Let's implement cycle for fun, or just flip-flop based on current.
+      // If current is dark or classic -> go light. If light -> go dark.
+      const newTheme: Theme = (state.theme === 'dark' || state.theme === 'classic') ? 'light' : 'dark';
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('pasale-theme', newTheme);
-        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.remove('light', 'dark', 'classic');
         if (newTheme === 'dark') {
           document.documentElement.classList.add('dark');
         }
