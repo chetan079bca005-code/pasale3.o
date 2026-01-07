@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import SignupView, VerifySignupOtpView, VerifyLoginOtpView, ApiProductView, LoginView, ApiPartyView, ApiExpenseView, ApiBillingView
+from .views import SignupView, VerifySignupOtpView, VerifyLoginOtpView, ApiProductView, LoginView, ApiPartyView, ApiExpenseView, ApiBillingView, ForgetPasswordView, VerifyForgetPasswordOtpView, ResetPasswordView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -20,4 +20,8 @@ urlpatterns = [
 
     path('billing/', ApiBillingView.as_view(), name='ApiBillingView'),
     path('billing/<int:billing_id>', ApiBillingView.as_view(), name='ApiBillingView'),
+
+    path('forget-password/', ForgetPasswordView.as_view(), name='forget-password'),
+    path('verify-forget-password-otp/', VerifyForgetPasswordOtpView.as_view(), name='verify-forget-password-otp'),
+    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
 ]

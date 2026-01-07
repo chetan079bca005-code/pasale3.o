@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.mail import send_mail
 import random
-from .models import Customer, Party, Product, Supplier, UserProfile, Expense, Billing, BillingItem
+from .models import Customer, ForgetPasswordOTP, Party, Product, Supplier, UserProfile, Expense, Billing, BillingItem
 from .serializers import ProductSerializer, PartySerializer, CustomerSerializer, SupplierSerializer, ExpenseSerializer, BillingSerializer, BillingItemSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
@@ -123,14 +123,7 @@ class LoginView(APIView):
         user_profile.save()
 
         # Send OTP to the user's email
-        send_mail(
-            'Login OTP Verification',
-            f'Your OTP for login is {otp}',
-            'sushil@frontbase.com.np',
-            [user.email],
-            fail_silently=False,
-        )
-
+        send_otp_email.delay(email, otp)
         return Response({'message': 'OTP sent to your email. Please verify to proceed.'},
                         status=status.HTTP_200_OK)
 
@@ -611,3 +604,90 @@ class ApiBillingView(APIView):
 
         billing.delete()
         return Response({'message': 'Billing deleted successfully!'}, status=status.HTTP_200_OK)
+    
+
+class ForgetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate OTP
+        otp = str(random.randint(100000, 999999))
+
+        # Create ForgetPasswordOTP entry
+        forget_password_otp = ForgetPasswordOTP.objects.create(
+            user=user,
+            otp=otp,
+            otp_created_at=timezone.now(),
+            is_verify=False
+        )
+
+        # Send OTP to the user's email
+        send_otp_email.delay(email, otp)
+
+        return Response({'message': 'OTP sent to your email. Please verify to reset your password.'},
+                        status=status.HTTP_200_OK)
+    
+class VerifyForgetPasswordOtpView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        otp_provided = request.data.get('otp', '').strip()
+
+        try:
+            user = User.objects.get(email=email)
+            forget_password_otp = ForgetPasswordOTP.objects.filter(user=user).latest('otp_created_at')
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except ForgetPasswordOTP.DoesNotExist:
+            return Response({'error': 'No OTP found for this user'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check OTP expiry
+        if not forget_password_otp.otp or not forget_password_otp.otp_created_at:
+            return Response({'error': 'No OTP found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if timezone.now() > forget_password_otp.otp_created_at + OTP_EXPIRY_TIME:
+            return Response({'error': 'OTP expired'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify OTP
+        if str(forget_password_otp.otp) == str(otp_provided):
+            forget_password_otp.is_verify = True
+            forget_password_otp.save()
+            return Response({'message': 'Forget Password OTP verified successfully!'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        new_password = request.data.get('new_password')
+
+        try:
+            user = User.objects.get(email=email)
+            forget_password_otp = ForgetPasswordOTP.objects.filter(user=user).latest('otp_created_at')
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except ForgetPasswordOTP.DoesNotExist:
+            return Response({'error': 'No OTP found for this user'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if OTP was verified
+        if forget_password_otp.is_verify==False:
+            return Response({'error': 'OTP not verified'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Reset the password
+        user.set_password(new_password)
+        user.save()
+
+        # Optionally, delete the OTP entry after successful password reset
+        forget_password_otp.delete()
+
+        return Response({'message': 'Password reset successfully!'}, status=status.HTTP_200_OK)

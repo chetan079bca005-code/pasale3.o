@@ -206,3 +206,14 @@ class BillingItem(models.Model):
         
     def __str__(self):
         return f"Item {self.id} for Billing {self.billing.id}"
+    
+class ForgetPasswordOTP(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicit primary key
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='forget_password_otps')
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_created_at = models.DateTimeField(null=True, blank=True)
+    is_verify = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"OTP for {self.user.username}"
+        
