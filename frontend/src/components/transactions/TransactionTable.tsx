@@ -25,6 +25,7 @@ import {
   FiPackage,
 } from 'react-icons/fi';
 import { TRANSACTION_TYPE_CONFIG, STATUS_CONFIG, TransactionType, PaymentStatus } from './types';
+import { useTranslation } from '../../utils/i18n';
 
 interface TransactionTableProps {
   transactions: any[];
@@ -48,6 +49,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
   isLoading = false,
   language = 'en',
 }) => {
+  const { d } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -56,16 +58,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Format date
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(language === 'np' ? 'ne-NP' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  // Format date - using centralized utility
+  const formatDate = (dateStr: string) => d(dateStr);
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -539,3 +533,4 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
     </div>
   );
 };
+

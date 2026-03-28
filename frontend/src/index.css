@@ -130,18 +130,50 @@
   }
 }
 
+/* Print container is hidden on screen */
+.print-container {
+  display: none;
+}
+
 @media print {
-  @page {
-    margin: 1cm;
+  /* Hide the entire React app and all other body children */
+  body > *:not(.print-container) {
+    display: none !important;
   }
 
-  body * {
-    visibility: hidden;
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  .printable,
-  body > *:not(.no-print) {
-    visibility: visible;
+  /* Show the print container (cloned invoice content) */
+  .print-container {
+    display: block !important;
+    background: white !important;
+    color: #000 !important;
+    margin: 0 auto !important;
+    box-sizing: border-box;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+  }
+
+  .print-container * {
+    color: #000 !important;
+    border-color: #d1d5db !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .print-container table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .print-container img {
+    max-width: 100%;
+    height: auto;
   }
 
   .no-print {

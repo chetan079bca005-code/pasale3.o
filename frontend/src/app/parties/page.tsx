@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { formatDate } from '../../utils/nepaliDate';
 import { useTranslation } from '../../utils/i18n';
 import { PageHeader } from '../../components/layout/PageHeader';
@@ -39,10 +40,18 @@ export default function PartiesPage() {
   const { t, c, n, d, language } = useTranslation();
   const navigate = useNavigate();
   const { parties, transactions } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const partySettings = featureSettings.parties;
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [sortBy, setSortBy] = useState<'name' | 'balance' | 'recent'>('name');
+
+  useEffect(() => {
+    if (!partySettings.partyCategory && activeTab !== 'all') {
+      setActiveTab('all');
+    }
+  }, [activeTab, partySettings.partyCategory]);
 
   const filtered = useMemo(() => {
     let result = parties.filter(
@@ -244,8 +253,12 @@ export default function PartiesPage() {
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700">
             {[
               { id: 'all' as TabType, label: t('common.all'), icon: FiUsers, count: parties.length },
-              { id: 'customers' as TabType, label: t('parties.customers'), icon: FiUser, count: customers.length, color: 'text-blue-600' },
-              { id: 'suppliers' as TabType, label: t('parties.suppliers'), icon: FiTruck, count: suppliers.length, color: 'text-purple-600' },
+              ...(partySettings.partyCategory
+                ? [
+                    { id: 'customers' as TabType, label: t('parties.customers'), icon: FiUser, count: customers.length, color: 'text-blue-600' },
+                    { id: 'suppliers' as TabType, label: t('parties.suppliers'), icon: FiTruck, count: suppliers.length, color: 'text-purple-600' },
+                  ]
+                : []),
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -330,7 +343,9 @@ export default function PartiesPage() {
                 <thead className="bg-gray-50 dark:bg-gray-800/50">
                   <tr>
                     <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.name') || 'Name'}</th>
-                    <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.type') || 'Type'}</th>
+                    {partySettings.partyCategory && (
+                      <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.type') || 'Type'}</th>
+                    )}
                     <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.phone') || 'Phone'}</th>
                     <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.email') || 'Email'}</th>
                     <th className="p-3 sm:p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('parties.balance')}</th>
@@ -351,11 +366,15 @@ export default function PartiesPage() {
                       >
                         <td className="p-3 sm:p-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 ${party.type === 'customer'
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden ${party.type === 'customer'
                               ? 'bg-linear-to-br from-blue-400 to-blue-600'
                               : 'bg-linear-to-br from-purple-400 to-purple-600'
                               }`}>
-                              {party.name.charAt(0).toUpperCase()}
+                              {partySettings.uploadPartyImage && party.photo ? (
+                                <img src={party.photo} alt={party.name} className="w-full h-full object-cover" />
+                              ) : (
+                                party.name.charAt(0).toUpperCase()
+                              )}
                             </div>
                             <div>
                               <p className="font-semibold text-gray-900 dark:text-gray-100">{party.name}</p>
@@ -368,14 +387,16 @@ export default function PartiesPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="p-3 sm:p-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${party.type === 'customer'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                            }`}>
-                            {party.type === 'customer' ? t('parties.customer') : t('parties.supplier')}
-                          </span>
-                        </td>
+                        {partySettings.partyCategory && (
+                          <td className="p-3 sm:p-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${party.type === 'customer'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                              }`}>
+                              {party.type === 'customer' ? t('parties.customer') : t('parties.supplier')}
+                            </span>
+                          </td>
+                        )}
                         <td className="p-3 sm:p-4 text-sm text-gray-600 dark:text-gray-400">
                           {party.phone ? (
                             <span className="flex items-center gap-1.5">
@@ -444,8 +465,14 @@ export default function PartiesPage() {
           </Card>
         )}
 
-        {showAddDialog && <AddPartyDialog onClose={() => setShowAddDialog(false)} />}
+        {showAddDialog && (
+          <AddPartyDialog
+            onClose={() => setShowAddDialog(false)}
+            defaultType={partySettings.partyCategory ? undefined : 'customer'}
+          />
+        )}
       </div>
     </div>
   );
 }
+

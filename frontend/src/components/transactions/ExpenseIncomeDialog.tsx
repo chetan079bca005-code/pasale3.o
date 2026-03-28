@@ -1,6 +1,16 @@
+/**
+ * ExpenseIncomeDialog Component
+ * 
+ * Modal dialog for recording expense or income transactions.
+ * Supports categories, payment modes, and necessity tracking.
+ * 
+ * @component
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../../store/dataStore';
 import { Button } from '../ui/Button';
+import { getTodayDateString, extractDatePart } from '../../utils/nepaliDate';
 import {
   FiX,
   FiCalendar,
@@ -44,7 +54,7 @@ export const ExpenseIncomeDialog: React.FC<ExpenseIncomeDialogProps> = ({
   // Form State
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState<number>(0);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayDateString());
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [description, setDescription] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -66,7 +76,7 @@ export const ExpenseIncomeDialog: React.FC<ExpenseIncomeDialogProps> = ({
     if (editData) {
       setCategory(editData.category || '');
       setAmount(editData.totalAmount || editData.amount || 0);
-      setDate(editData.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
+      setDate(extractDatePart(editData.date));
       setPaymentMode(editData.paymentMode || 'cash');
       setDescription(editData.description || editData.notes || '');
       setReferenceNumber(editData.referenceNumber || '');
@@ -169,7 +179,7 @@ export const ExpenseIncomeDialog: React.FC<ExpenseIncomeDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className={`px-6 py-4 ${isExpense ? 'bg-gradient-to-r from-rose-600 to-rose-700' : 'bg-gradient-to-r from-teal-600 to-teal-700'}`}>
+        <div className={`px-6 py-4 ${isExpense ? 'bg-linear-to-r from-rose-600 to-rose-700' : 'bg-linear-to-r from-teal-600 to-teal-700'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -393,3 +403,4 @@ export const ExpenseIncomeDialog: React.FC<ExpenseIncomeDialogProps> = ({
     </div>
   );
 };
+

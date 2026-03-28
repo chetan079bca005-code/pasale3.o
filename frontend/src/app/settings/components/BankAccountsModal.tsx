@@ -146,3 +146,4 @@ export const BankAccountsModal: React.FC<BankAccountsModalProps> = ({
         </div>
     );
 };
+

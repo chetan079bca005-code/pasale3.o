@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from '../../../utils/i18n';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -6,6 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { useSettingsStore } from '../../../store/settingsStore';
 import { FiBriefcase, FiX, FiChevronDown, FiChevronRight, FiFileText, FiArchive, FiTrash2, FiCheck } from 'react-icons/fi';
 import { BankAccountsManager } from './BankAccountsManager';
+import { settingsApi } from '../../../utils/api';
 
 // Nepal Location Data
 const provinces = [
@@ -44,10 +45,23 @@ export const BusinessProfileSettings: React.FC = () => {
 
     const [form, setForm] = useState({ ...businessProfile });
 
-    const handleSave = () => {
-        updateBusinessProfile(form);
-        setSuccess(t('settings.successUpdate'));
-        setTimeout(() => setSuccess(''), 3000);
+    // Sync local form when store businessProfile updates (e.g., after API load or bank account edits)
+    useEffect(() => {
+        setForm({ ...businessProfile });
+    }, [businessProfile]);
+
+    const handleSave = async () => {
+        try {
+            // ensure bank accounts (and any store-updated fields) are included
+            const latest = { ...businessProfile, ...form, bankAccounts: businessProfile.bankAccounts };
+            updateBusinessProfile(latest);
+            await settingsApi.update({ business_profile: latest });
+            setSuccess(t('settings.successUpdate'));
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            console.error(err);
+            setSuccess('Failed to save');
+        }
     };
 
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,3 +292,4 @@ export const BusinessProfileSettings: React.FC = () => {
         </div>
     );
 };
+

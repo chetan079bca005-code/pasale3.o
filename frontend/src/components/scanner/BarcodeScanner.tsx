@@ -136,3 +136,4 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     </div>
   );
 }
+

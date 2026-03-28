@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from '../../../utils/i18n';
 import { Card } from '../../../components/ui/Card';
 import { useSettingsStore } from '../../../store/settingsStore';
 import { ToggleSwitch } from './ToggleSwitch';
 import { FiUsers, FiPackage, FiPrinter, FiDollarSign } from 'react-icons/fi';
+import { settingsApi } from '../../../utils/api';
 
 export const FeatureSettings: React.FC = () => {
     const { t } = useTranslation();
@@ -14,6 +15,8 @@ export const FeatureSettings: React.FC = () => {
         updateTransactionSettings,
         updateInvoicePrintSettings
     } = useSettingsStore();
+    const [saving, setSaving] = useState(false);
+    const [saveMsg, setSaveMsg] = useState('');
 
     const {
         parties: partySettings,
@@ -22,7 +25,22 @@ export const FeatureSettings: React.FC = () => {
         invoicePrint: invoicePrintSettings
     } = featureSettings;
 
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            await settingsApi.update({ feature_settings: featureSettings });
+            setSaveMsg('Saved');
+            setTimeout(() => setSaveMsg(''), 2500);
+        } catch (err) {
+            console.error(err);
+            setSaveMsg('Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
+        <>
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('settings.sections.features.title')}</h2>
@@ -162,5 +180,18 @@ export const FeatureSettings: React.FC = () => {
                 </Card>
             </div>
         </div>
+
+        <div className="flex items-center justify-end">
+            {saveMsg && <span className="text-sm text-gray-500 mr-3">{saveMsg}</span>}
+            <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 disabled:opacity-60"
+            >
+                {saving ? 'Saving…' : 'Save changes'}
+            </button>
+        </div>
+        </>
     );
 };
+

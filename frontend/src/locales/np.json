@@ -17,6 +17,8 @@
     "logoutConfirm": "के तपाईं लग आउट गर्न निश्चित हुनुहुन्छ?",
     "saveChanges": "परिवर्तन सुरक्षित गर्नुहोस्",
     "savedLocal": "सबै परिवर्तन लोकल रूपमा सुरक्षित भयो",
+    "changesSaved": "परिवर्तनहरू सुरक्षित छन्",
+    "unsavedChanges": "असुरक्षित परिवर्तनहरू",
     "successUpdate": "सफलतापूर्वक अपडेट भयो!",
     "sections": {
       "myAccount": {
@@ -109,6 +111,7 @@
         "paperSize": "कागजको आकार",
         "showLogo": "व्यापार लोगो देखाउनुहोस्",
         "showBusinessDetails": "व्यापार विवरण देखाउनुहोस्",
+        "showPaymentInfo": "भुक्तानी विवरण देखाउनुहोस्",
         "showTerms": "नियम र शर्तहरू देखाउनुहोस्"
       },
       "subscription": {
@@ -520,7 +523,21 @@
     "createBill": "बिल बनाउनुहोस्",
     "enterPaymentAmount": "भुक्तानी रकम प्रविष्ट गर्नुहोस्:",
     "paymentRecorded": "भुक्तानी रेकर्ड गरियो:",
-    "recordPayment": "भुक्तानी रेकर्ड गर्नुहोस्"
+    "recordPayment": "भुक्तानी रेकर्ड गर्नुहोस्",
+    "itemName": "वस्तुको नाम",
+    "taxPercent": "कर %",
+    "invoiceDetails": "बिल विवरण",
+    "customerDetails": "ग्राहक विवरण",
+    "partyName": "पार्टीको नाम",
+    "vatPan": "VAT/PAN (ऐच्छिक)",
+    "livePreview": "लाइभ पूर्वावलोकन",
+    "billTo": "बिल प्राप्तकर्ता",
+    "walkIn": "सिधा ग्राहक",
+    "noItemsYet": "अहिलेसम्म कुनै वस्तु थपिएको छैन",
+    "summary": "सारांश",
+    "paidAmount": "भुक्तान रकम",
+    "grandTotal": "कुल जम्मा",
+    "saving": "सुरक्षित गर्दै..."
   },
   "pos": {
     "title": "पोस",
@@ -791,7 +808,11 @@
     "salesTrend": "बिक्री प्रवृत्ति",
     "expenseBreakdown": "खर्च विभाजन",
     "outOfStock": "स्टक सकिएको",
-    "reportsDescription": "तपाईंका सबै व्यापारिक वित्तीय र सञ्चालन रिपोर्टहरू एकै ठाउँबाट हेर्नुहोस्।"
+    "reportsDescription": "तपाईंका सबै व्यापारिक वित्तीय र सञ्चालन रिपोर्टहरू एकै ठाउँबाट हेर्नुहोस्।",
+    "reportNotes": "रिपोर्ट नोटहरू",
+    "exportAs": "यसरी निर्यात गर्नुहोस्",
+    "email": "इमेल",
+    "overview": "व्यापार अवलोकन"
   },
   "electronics": "इलेक्ट्रोनिक्स",
   "accessories": "एक्सेसरिज",
@@ -1142,16 +1163,40 @@
     "contact": "सम्पर्क",
     "dashboard": "ड्यासबोर्ड",
     "inventory": "इन्भेन्टरी",
+    "billing": "बिलिङ",
     "pos": "पोस",
+    "transactions": "कारोबारहरू",
+    "parties": "पार्टीहरू",
+    "reports": "रिपोर्टहरू",
+    "expenses": "खर्चहरू",
+    "settings": "सेटिङहरू",
+    "logout": "लगआउट",
     "collapse": "सानो बनाउनुहोस्",
     "expand": "ठुलो बनाउनुहोस्",
+    "businessReports": "व्यापार रिपोर्टहरू",
+    "expenseMonitoring": "खर्च अनुगमन",
     "recordPurchase": "खरिद कारोबार रेकर्ड गर्नुहोस्",
     "recordSale": "बिक्री कारोबार रेकर्ड गर्नुहोस्",
     "recordExpense": "खर्च रेकर्ड गर्नुहोस्",
     "recordSelling": "बिक्री कारोबार रेकर्ड गर्नुहोस्",
     "describeExpense": "खर्चको विवरण दिनुहोस्",
     "markNecessary": "आवश्यक खर्चको रूपमा चिन्ह लगाउनुहोस्",
-    "transactionDesc": "कारोबार विवरण"
+    "transactionDesc": "कारोबार विवरण",
+    "addExpense": "खर्च थप्नुहोस्",
+    "addPurchase": "खरिद थप्नुहोस्",
+    "addSelling": "बिक्री थप्नुहोस्",
+    "selectParty": "पार्टी छान्नुहोस्",
+    "pages": {
+      "dashboard": "ड्यासबोर्ड",
+      "inventory": "इन्भेन्टरी",
+      "billing": "बिलिङ",
+      "pos": "पोस",
+      "transactions": "कारोबारहरू",
+      "parties": "पार्टीहरू",
+      "reports": "रिपोर्टहरू",
+      "expenses": "खर्चहरू",
+      "settings": "सेटिङहरू"
+    }
   },
   "common": {
     "save": "सुरक्षित गर्नुहोस्",

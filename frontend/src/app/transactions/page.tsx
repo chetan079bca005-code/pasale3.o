@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { useTranslation } from '../../utils/i18n';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -45,6 +46,8 @@ type QuickFilter = 'today' | 'week' | 'month' | 'year' | 'custom';
 export default function TransactionsPage() {
   const { t, c, n, language } = useTranslation();
   const { transactions, parties, deleteTransaction } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
   const navigate = useNavigate();
 
   // UI State
@@ -55,6 +58,20 @@ export default function TransactionsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showNewTransactionMenu, setShowNewTransactionMenu] = useState(false);
+
+  const upcomingReminders = useMemo(() => {
+    if (!transactionSettings.enablePaymentReminders) return [];
+    const days = transactionSettings.reminderDays || 0;
+    if (days <= 0) return [];
+    const now = new Date();
+    const max = new Date();
+    max.setDate(now.getDate() + days);
+    return transactions.filter((t) => {
+      if (!t.dueDate) return false;
+      const due = new Date(t.dueDate);
+      return due >= now && due <= max;
+    });
+  }, [transactions, transactionSettings.enablePaymentReminders, transactionSettings.reminderDays]);
 
   // Dialog States
   const [salesDialog, setSalesDialog] = useState<{ open: boolean; editData?: any }>({ open: false });
@@ -315,7 +332,7 @@ export default function TransactionsPage() {
         {/* Header */}
         <div className="relative mb-8 rounded-2xl">
           {/* Background Pattern */}
-          <div className="absolute inset-0 bg-linear-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-linear-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl p-5 sm:p-6 shadow-xl">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.07'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
           </div>
 
@@ -423,6 +440,22 @@ export default function TransactionsPage() {
             </div>
           </div>
         </div>
+
+        {transactionSettings.enablePaymentReminders && upcomingReminders.length > 0 && (
+          <Card className="p-4 mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Payment reminders</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {upcomingReminders.length} invoice(s) due within {transactionSettings.reminderDays || 0} days
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab('sales')}>
+                View Invoices
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -661,3 +694,4 @@ export default function TransactionsPage() {
     </div>
   );
 }
+

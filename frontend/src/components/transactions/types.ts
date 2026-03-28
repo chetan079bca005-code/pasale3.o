@@ -356,3 +356,4 @@ export const calculateTransactionTotals = (items: TransactionItem[], taxRate: nu
     totalAmount,
   };
 };
+

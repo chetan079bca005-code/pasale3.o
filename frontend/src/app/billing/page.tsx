@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
 import { useDataStore, Transaction } from '../../store/dataStore';
 import { useBusinessStore } from '../../store/businessStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { BarcodeScanner } from '../../components/scanner/BarcodeScanner';
@@ -72,9 +73,11 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
 const taxRates = [0, 5, 10, 13, 18];
 
 export default function BillingPage() {
-  const { c } = useTranslation();
+  const { t, c } = useTranslation();
   const { parties, transactions, addTransaction, addParty } = useDataStore();
   const { businessName, panNumber } = useBusinessStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -87,11 +90,16 @@ export default function BillingPage() {
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(() => {
     const date = new Date();
-    date.setDate(date.getDate() + 30);
+    const days = transactionSettings.enablePaymentReminders
+      ? (transactionSettings.reminderDays || 30)
+      : 30;
+    date.setDate(date.getDate() + days);
     return date.toISOString().split('T')[0];
   });
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>('draft');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    (transactionSettings.defaultPaymentMethod as PaymentMethod) || 'cash'
+  );
 
   // Customer State
   const [customerId, setCustomerId] = useState('');
@@ -106,7 +114,7 @@ export default function BillingPage() {
 
   // Payment State
   const [paidAmount, setPaidAmount] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(transactionSettings.defaultNotes || '');
 
   // UI State
   const [showScanner, setShowScanner] = useState(false);
@@ -213,6 +221,15 @@ export default function BillingPage() {
       setDataLoaded(true);
     }
   }, [transactionIdParam, partyIdParam, transactions, dataLoaded]);
+
+  useEffect(() => {
+    if (dataLoaded) return;
+    if (!transactionSettings.enablePaymentReminders) return;
+    const days = transactionSettings.reminderDays || 30;
+    const base = new Date(invoiceDate);
+    base.setDate(base.getDate() + days);
+    setDueDate(base.toISOString().split('T')[0]);
+  }, [dataLoaded, invoiceDate, transactionSettings.enablePaymentReminders, transactionSettings.reminderDays]);
 
   // Update customer details when selected
   useEffect(() => {
@@ -565,7 +582,73 @@ export default function BillingPage() {
     setCustomerVat('');
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    // Find the invoice preview panel (the white card inside the right panel)
+    const previewEl = document.querySelector('.billing-print-preview');
+    if (!previewEl) {
+      // Fallback: just call window.print()
+      window.print();
+      return;
+    }
+
+    // Remove any existing print container
+    const existing = document.querySelector('.print-container');
+    if (existing) existing.remove();
+
+    // Determine paper size from settings
+    const paperSize = featureSettings.invoicePrint?.paperSize || 'A4';
+    const isThermal = paperSize === 'thermal';
+    const printPageSize = isThermal
+      ? '80mm auto'
+      : paperSize === 'A5'
+        ? '148mm 210mm'
+        : '210mm 297mm';
+    const printMargin = isThermal ? '0' : '10mm';
+
+    // Create print container as direct child of body
+    const container = document.createElement('div');
+    container.className = 'print-container';
+    container.setAttribute('data-paper', paperSize);
+    container.innerHTML = previewEl.innerHTML;
+
+    // Inject @page style
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      @media print {
+        @page { size: ${printPageSize}; margin: ${printMargin}; }
+      }
+      .print-container {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        line-height: 1.6;
+        padding: 15mm;
+        box-sizing: border-box;
+      }
+      .print-container[data-paper='thermal'] {
+        width: 80mm;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        padding: 3mm;
+        line-height: 1.4;
+      }
+      .print-container[data-paper='A5'] { width: 148mm; padding: 12mm; }
+      .print-container[data-paper='A4'] { width: 210mm; padding: 15mm; }
+    `;
+    container.prepend(styleEl);
+    document.body.appendChild(container);
+
+    setTimeout(() => {
+      window.print();
+    }, 150);
+
+    const cleanup = () => {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+  };
 
   // Common input styles
   const inputClass = "w-full h-11 px-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all dark:text-white";
@@ -770,22 +853,154 @@ export default function BillingPage() {
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <FiPackage className="w-5 h-5 text-purple-600" />
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Items</h2>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">{t('billing.items') || 'Items'}</h2>
               </div>
 
-              {/* Product Search */}
-              <div className="relative w-64">
+              <Button variant="outline" size="sm" onClick={addItem} className="gap-2 text-blue-600 border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                <FiPlus className="w-4 h-4" /> {t('billing.addItem') || 'Add Item'}
+              </Button>
+            </div>
+
+            {/* Items Table Header */}
+            <div className="grid grid-cols-12 gap-2 mb-3 px-2">
+              <div className="col-span-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('billing.itemName') || 'ITEM NAME'}</div>
+              <div className="col-span-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">{t('billing.qty') || 'QTY'}</div>
+              <div className="col-span-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">{t('billing.rate') || 'RATE'}</div>
+              <div className="col-span-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">{t('billing.taxPercent') || 'TAX %'}</div>
+              <div className="col-span-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">{t('billing.discount') || 'DISCOUNT'}</div>
+              <div className="col-span-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">{t('billing.total') || 'TOTAL'}</div>
+              <div className="col-span-1"></div>
+            </div>
+
+            {/* Items Rows */}
+            <div className="space-y-2">
+              {items.map((item) => (
+                <div key={item.id} className="grid grid-cols-12 gap-2 items-center group">
+                  {/* Item Name with Search */}
+                  <div className="col-span-4 relative">
+                    <input
+                      type="text"
+                      placeholder={t('billing.itemName') || 'Item name'}
+                      value={item.description}
+                      onChange={e => {
+                        updateItem(item.id, 'description', e.target.value);
+                        setProductSearch(e.target.value);
+                        setShowProductDropdown(true);
+                      }}
+                      onFocus={() => {
+                        if (item.description) {
+                          setProductSearch(item.description);
+                          setShowProductDropdown(true);
+                        }
+                      }}
+                      className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none dark:text-white"
+                    />
+                    {/* Product Dropdown for this item */}
+                    {showProductDropdown && productSearch && item.description === productSearch && filteredProducts.length > 0 && (
+                      <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                        {filteredProducts.map(p => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              updateItem(item.id, 'description', p.name);
+                              updateItem(item.id, 'rate', p.price);
+                              setShowProductDropdown(false);
+                              setProductSearch('');
+                            }}
+                            className="px-3 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <div>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{p.sku}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{c(p.price)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quantity */}
+                  <div className="col-span-1">
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                      className={`w-full h-11 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
+                    />
+                  </div>
+
+                  {/* Rate */}
+                  <div className="col-span-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.rate || ''}
+                      placeholder="0.00"
+                      onChange={e => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                      className={`w-full h-11 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
+                    />
+                  </div>
+
+                  {/* Tax % */}
+                  <div className="col-span-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={item.tax || ''}
+                      placeholder=""
+                      onChange={e => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                      className={`w-full h-11 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
+                    />
+                  </div>
+
+                  {/* Discount */}
+                  <div className="col-span-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.discount || ''}
+                      placeholder="0.00"
+                      onChange={e => updateItem(item.id, 'discount', parseFloat(e.target.value) || 0)}
+                      className={`w-full h-11 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
+                    />
+                  </div>
+
+                  {/* Total */}
+                  <div className="col-span-1 text-right">
+                    <span className="font-semibold text-gray-900 dark:text-white text-sm">{c(item.total)}</span>
+                  </div>
+
+                  {/* Delete Button */}
+                  <div className="col-span-1 flex justify-center">
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-60 group-hover:opacity-100"
+                    >
+                      <FiTrash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Search Products Button */}
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="relative">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search products..."
+                  placeholder={t('billing.searchProducts') || 'Search products to add...'}
                   value={productSearch}
                   onChange={e => { setProductSearch(e.target.value); setShowProductDropdown(true); }}
                   onFocus={() => setShowProductDropdown(true)}
-                  className="w-full h-10 pl-9 pr-3 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                  className="w-full h-11 pl-10 pr-4 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
                 />
-
                 {showProductDropdown && productSearch && filteredProducts.length > 0 && (
                   <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                     {filteredProducts.map(p => (
@@ -804,102 +1019,6 @@ export default function BillingPage() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Items Table */}
-            <div className="overflow-x-auto -mx-5">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-900/50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Qty</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Rate</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Disc</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Tax%</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Total</th>
-                    <th className="px-2 py-3 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {items.map((item) => (
-                    <tr key={item.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-2">
-                        <input
-                          type="text"
-                          placeholder="Item description"
-                          value={item.description}
-                          onChange={e => updateItem(item.id, 'description', e.target.value)}
-                          className="w-full h-10 px-3 bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 rounded-lg text-sm outline-none dark:text-white"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                          className={`w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={item.rate}
-                          onChange={e => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
-                          className={`w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-right focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.discount}
-                            onChange={e => updateItem(item.id, 'discount', parseFloat(e.target.value) || 0)}
-                            className={`w-14 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white ${noSpinnerClass}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => updateItem(item.id, 'discountType', item.discountType === 'percent' ? 'flat' : 'percent')}
-                            className="h-10 px-2 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                          >
-                            {item.discountType === 'percent' ? '%' : '₹'}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={item.tax}
-                          onChange={e => updateItem(item.id, 'tax', parseFloat(e.target.value))}
-                          className="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
-                        >
-                          {taxRates.map(rate => (
-                            <option key={rate} value={rate}>{rate}%</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <span className="font-semibold text-gray-900 dark:text-white">{c(item.total)}</span>
-                      </td>
-                      <td className="px-2 py-2">
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <FiTrash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-              <Button variant="outline" onClick={addItem} className="w-full h-11 border-dashed gap-2">
-                <FiPlus className="w-4 h-4" /> Add Item
-              </Button>
             </div>
           </Card>
 
@@ -1006,7 +1125,7 @@ export default function BillingPage() {
 
           {/* Invoice Preview */}
           <div className="flex-1 overflow-y-auto p-6 print:p-0">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl p-8 print:shadow-none print:rounded-none">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl p-8 print:shadow-none print:rounded-none billing-print-preview">
 
               {/* Invoice Header */}
               <div className="flex justify-between items-start mb-8">
@@ -1179,3 +1298,4 @@ export default function BillingPage() {
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
 import { useLanguageStore } from '../store/languageStore';
 import enTranslations from '../locales/en.json';
 import npTranslations from '../locales/np.json';
-import { toNepaliNumerals, formatCurrency as formatCurrencyUtil, formatNumber as formatNumberUtil, formatPercentage as formatPercentageUtil, formatShortDate as formatShortDateUtil } from './nepaliDate';
+import { toNepaliNumerals, formatCurrency as formatCurrencyUtil, formatNumber as formatNumberUtil, formatPercentage as formatPercentageUtil, formatDateString, formatTransactionDate } from './nepaliDate';
 
 const translations = {
   en: enTranslations,
@@ -28,7 +28,8 @@ export const useTranslation = () => {
 
   // Format number based on current language
   const n = (num: number | string): string => {
-    const formatted = typeof num === 'number' ? num.toLocaleString('en-US') : num;
+    const locale = general.numberFormat === 'indian' ? 'en-IN' : 'en-US';
+    const formatted = typeof num === 'number' ? num.toLocaleString(locale) : num;
     return language === 'np' ? toNepaliNumerals(formatted) : formatted;
   };
 
@@ -44,12 +45,14 @@ export const useTranslation = () => {
 
   // Format date based on settings (calendar type)
   const d = (dateString: string): string => {
-    // If user wants BS, we try to convert. If AD, we might just format standard.
-    // formatShortDateUtil likely toggles based on language (np->BS, en->AD).
-    // We want to force it based on general.calendarType if possible.
-    return formatShortDateUtil(dateString, language, general.calendarType);
+    return formatDateString(dateString, language);
   };
 
-  return { t, n, c, p, d, language };
+  const dt = (dateString: string): string => {
+    return formatTransactionDate(dateString, language);
+  };
+
+  return { t, n, c, p, d, dt, language };
 };
+
 

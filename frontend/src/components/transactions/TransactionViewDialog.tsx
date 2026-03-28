@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fi';
 import { Button } from '../ui/Button';
 import { TRANSACTION_TYPE_CONFIG, STATUS_CONFIG, TransactionType, PaymentStatus } from './types';
+import { useTranslation } from '../../utils/i18n';
 
 interface TransactionViewDialogProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const TransactionViewDialog: React.FC<TransactionViewDialogProps> = ({
   onEdit,
   onPrint,
 }) => {
+  const { d } = useTranslation();
   if (!isOpen || !transaction) return null;
 
   const type = transaction.type as TransactionType;
@@ -39,15 +41,8 @@ export const TransactionViewDialog: React.FC<TransactionViewDialogProps> = ({
   const status = (transaction.paymentStatus || 'paid') as PaymentStatus;
   const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.paid;
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  // Using centralized date formatting utility
+  const formatDate = (dateStr: string) => d(dateStr);
 
   const getStatusIcon = (status: PaymentStatus) => {
     switch (status) {
@@ -68,7 +63,7 @@ export const TransactionViewDialog: React.FC<TransactionViewDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className={`px-6 py-4 bg-gradient-to-r ${
+        <div className={`px-6 py-4 bg-linear-to-r ${
           type === 'selling' || type === 'payment_in' ? 'from-emerald-600 to-emerald-700' :
           type === 'purchase' || type === 'payment_out' ? 'from-blue-600 to-blue-700' :
           type === 'expense' ? 'from-rose-600 to-rose-700' :
@@ -321,3 +316,4 @@ export const TransactionViewDialog: React.FC<TransactionViewDialogProps> = ({
     </div>
   );
 };
+

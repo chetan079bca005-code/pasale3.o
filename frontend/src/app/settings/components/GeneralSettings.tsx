@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from '../../../utils/i18n';
 import { useLanguageStore } from '../../../store/languageStore';
 import { Card } from '../../../components/ui/Card';
+import { Input } from '../../../components/ui/Input';
 import { useSettingsStore, type Theme } from '../../../store/settingsStore';
 import { useThemeStore } from '../../../store/themeStore';
 import { FiCheck } from 'react-icons/fi';
 import { ToggleSwitch } from './ToggleSwitch';
+import { settingsApi } from '../../../utils/api';
 
 export const GeneralSettings: React.FC = () => {
     const { t } = useTranslation();
@@ -14,13 +16,41 @@ export const GeneralSettings: React.FC = () => {
         updateGeneralSettings,
     } = useSettingsStore();
     const { theme, setTheme } = useThemeStore();
-    const { setLanguage } = useLanguageStore();
+    const { language, setLanguage } = useLanguageStore();
+    const [saving, setSaving] = useState(false);
+    const [saveMsg, setSaveMsg] = useState('');
 
     const themes: { id: Theme; label: string; color: string }[] = [
         { id: 'light', label: 'Light', color: 'bg-white' },
         { id: 'classic', label: 'Classic', color: 'bg-gray-700' },
         { id: 'dark', label: 'Dark', color: 'bg-gray-900' },
     ];
+
+    useEffect(() => {
+        if (general.appearance && general.appearance !== theme) {
+            setTheme(general.appearance);
+        }
+    }, [general.appearance, setTheme, theme]);
+
+    useEffect(() => {
+        if (general.language && general.language !== language) {
+            setLanguage(general.language);
+        }
+    }, [general.language, language, setLanguage]);
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            await settingsApi.update({ general });
+            setSaveMsg('Saved');
+            setTimeout(() => setSaveMsg(''), 2500);
+        } catch (err) {
+            console.error(err);
+            setSaveMsg('Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
@@ -41,7 +71,7 @@ export const GeneralSettings: React.FC = () => {
                                 setTheme(themeOption.id);
                                 updateGeneralSettings({ appearance: themeOption.id });
                             }}
-                            className={`relative rounded-xl overflow-hidden border-2 transition-all duration-300 min-w-[120px] ${theme === themeOption.id
+                            className={`relative rounded-xl overflow-hidden border-2 transition-all duration-300 min-w-30 ${theme === themeOption.id
                                 ? 'border-blue-600 ring-2 ring-blue-600/20 scale-105'
                                 : 'border-transparent bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
                                 }`}
@@ -221,8 +251,32 @@ export const GeneralSettings: React.FC = () => {
                         label="App Lock"
                         description="Require authentication to access app"
                     />
+                    {general.appLock && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">App Lock PIN</label>
+                            <Input
+                                type="password"
+                                value={general.appLockPin || ''}
+                                onChange={(e) => updateGeneralSettings({ appLockPin: e.target.value })}
+                                className="bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl"
+                                placeholder="Set a PIN"
+                            />
+                        </div>
+                    )}
                 </Card>
+            </div>
+
+            <div className="flex items-center justify-end">
+                {saveMsg && <span className="text-sm text-gray-500 mr-3">{saveMsg}</span>}
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 disabled:opacity-60"
+                >
+                    {saving ? 'Saving…' : 'Save changes'}
+                </button>
             </div>
         </div>
     );
 };
+

@@ -92,10 +92,10 @@ export default function LoginPage() {
         password: formData.password,
       });
       
-      // Store debug OTP if available (development mode)
+      // Store debug OTP if available (development mode only)
+      // This allows testing without email in development
       if (response.debug_otp) {
         setDebugOtp(response.debug_otp);
-        console.log('Debug OTP:', response.debug_otp);
       }
       
       // Move to OTP step
@@ -186,7 +186,11 @@ export default function LoginPage() {
       });
       authStore.login();
       authStore.completeOnboarding();
-      navigate('/dashboard');
+      
+      // Restore the saved redirect route or default to dashboard
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(redirectPath);
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'OTP verification failed');
     } finally {
@@ -205,10 +209,9 @@ export default function LoginPage() {
         password: formData.password,
       });
       
-      // Store debug OTP if available (development mode)
+      // Store debug OTP if available (development mode only)
       if (response.debug_otp) {
         setDebugOtp(response.debug_otp);
-        console.log('Debug OTP (resend):', response.debug_otp);
       }
       
       setOtp(['', '', '', '', '', '']);
@@ -460,3 +463,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

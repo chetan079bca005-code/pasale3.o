@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useBusinessStore } from '../../store/businessStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { settingsApi } from '../../utils/api';
 import {
   FiUser,
   FiMail,
@@ -32,6 +33,44 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState(userProfile);
   const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (loadedRef.current) {
+      return;
+    }
+    loadedRef.current = true;
+    const loadProfile = async () => {
+      try {
+        setLoading(true);
+        const data = await settingsApi.getProfile();
+        const profile = data.profile || {};
+        const nextProfile = {
+          name: data.username || '',
+          email: data.email || '',
+          phone: profile.phone_no || '',
+          photo: profile.photo || null,
+          businessName: profile.business_name || '',
+        };
+        updateUserProfile(nextProfile);
+        setEditData((prev) => (isEditing ? prev : nextProfile));
+      } catch (err) {
+        console.error('Failed to load profile', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [updateUserProfile]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditData(userProfile);
+    }
+  }, [isEditing, userProfile]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,11 +83,26 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSave = () => {
-    updateUserProfile(editData);
-    setIsEditing(false);
-    setSuccess('Profile updated successfully!');
-    setTimeout(() => setSuccess(''), 3000);
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await settingsApi.updateProfile({
+        username: editData.name,
+        email: editData.email,
+        phone_no: editData.phone,
+        business_name: editData.businessName,
+        photo: editData.photo,
+      });
+      updateUserProfile(editData);
+      setIsEditing(false);
+      setSuccess('Profile updated successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Failed to save profile', err);
+      setSuccess('Failed to save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -100,7 +154,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 -mt-16 sm:-mt-24 relative z-10 pb-6 sm:pb-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 -mt-16 sm:-mt-24 relative z-10 pb-6 sm:pb-8">
         {/* Success Message */}
         {success && (
           <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 text-xs sm:text-sm font-medium animate-in slide-in-from-top duration-300">
@@ -168,6 +222,7 @@ export default function ProfilePage() {
                     onClick={() => setIsEditing(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                     size="sm"
+                    disabled={loading}
                   >
                     <FiEdit2 className="w-4 h-4 sm:mr-2" />
                     <span className="hidden sm:inline">Edit Profile</span>
@@ -188,9 +243,10 @@ export default function ProfilePage() {
                       onClick={handleSave}
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={saving}
                     >
                       <FiSave className="w-4 h-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Save</span>
+                      <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save'}</span>
                     </Button>
                   </div>
                 )}
@@ -466,3 +522,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

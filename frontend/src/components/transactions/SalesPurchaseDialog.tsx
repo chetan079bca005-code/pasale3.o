@@ -1,6 +1,17 @@
+/**
+ * SalesPurchaseDialog Component
+ * 
+ * Modal dialog for creating and editing sales or purchase transactions.
+ * Supports item selection, discount/tax calculations, and payment tracking.
+ * 
+ * @component
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { Button } from '../ui/Button';
+import { getTodayDateString, extractDatePart } from '../../utils/nepaliDate';
 import {
   FiX,
   FiPlus,
@@ -25,10 +36,15 @@ import {
 } from './types';
 
 interface SalesPurchaseDialogProps {
+  /** Whether the dialog is visible */
   isOpen: boolean;
+  /** Callback to close the dialog */
   onClose: () => void;
+  /** Type of transaction: 'sales' or 'purchase' */
   type: 'sales' | 'purchase';
+  /** Data for editing an existing transaction */
   editData?: any;
+  /** Callback on successful save */
   onSuccess?: () => void;
 }
 
@@ -40,14 +56,16 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
   onSuccess,
 }) => {
   const { parties, addTransaction, updateTransaction } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
   const isEdit = !!editData;
   const isSales = type === 'sales';
 
-  // Form State
+  // Form State - using centralized date utility
   const [partyId, setPartyId] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayDateString());
   const [dueDate, setDueDate] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
@@ -56,9 +74,11 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
   const [additionalTax, setAdditionalTax] = useState(13);
   const [additionalDiscount, setAdditionalDiscount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(
+    (transactionSettings.defaultPaymentMethod as PaymentMode) || 'cash'
+  );
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('unpaid');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(transactionSettings.defaultNotes || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -84,12 +104,29 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
     }
   }, [type, isEdit]);
 
-  // Load edit data
+  useEffect(() => {
+    if (!transactionSettings.enablePaymentReminders) {
+      setDueDate('');
+    }
+  }, [transactionSettings.enablePaymentReminders]);
+
+  useEffect(() => {
+    if (!isEdit && transactionSettings.enablePaymentReminders) {
+      const days = transactionSettings.reminderDays || 0;
+      if (days > 0) {
+        const base = new Date(date);
+        base.setDate(base.getDate() + days);
+        setDueDate(base.toISOString().split('T')[0]);
+      }
+    }
+  }, [date, isEdit, transactionSettings.enablePaymentReminders, transactionSettings.reminderDays]);
+
+  // Load edit data - uses centralized date utilities
   useEffect(() => {
     if (editData) {
       setPartyId(editData.partyId || '');
-      setDate(editData.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
-      setDueDate(editData.dueDate?.split('T')[0] || '');
+      setDate(extractDatePart(editData.date));
+      setDueDate(editData.dueDate ? extractDatePart(editData.dueDate) : '');
       setInvoiceNumber(editData.transactionNumber || '');
       setItems(editData.items?.length ? editData.items : [
         { id: '1', name: '', quantity: 1, rate: 0, tax: 0, discount: 0, total: 0 },
@@ -207,6 +244,7 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
           type: transactionData.type,
           amount: totals.totalAmount,
           date: transactionData.date,
+          dueDate: transactionData.dueDate,
           description: `${isSales ? 'Sale' : 'Purchase'} - ${invoiceNumber}`,
           partyId,
           partyName: selectedParty?.name,
@@ -218,6 +256,7 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
           type: transactionData.type,
           amount: totals.totalAmount,
           date: transactionData.date,
+          dueDate: transactionData.dueDate,
           description: `${isSales ? 'Sale' : 'Purchase'} - ${invoiceNumber}`,
           partyId,
           partyName: selectedParty?.name,
@@ -243,7 +282,7 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className={`px-6 py-4 ${isSales ? 'bg-gradient-to-r from-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'}`}>
+        <div className={`px-6 py-4 ${isSales ? 'bg-linear-to-r from-emerald-600 to-emerald-700' : 'bg-linear-to-r from-blue-600 to-blue-700'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -341,18 +380,20 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
             </div>
 
             {/* Due Date */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                <FiCalendar className="inline w-4 h-4 mr-1.5" />
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
+            {transactionSettings.enablePaymentReminders && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <FiCalendar className="inline w-4 h-4 mr-1.5" />
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+            )}
           </div>
 
           {/* Items Table */}
@@ -609,3 +650,4 @@ export const SalesPurchaseDialog: React.FC<SalesPurchaseDialogProps> = ({
     </div>
   );
 };
+

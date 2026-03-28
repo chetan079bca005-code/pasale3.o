@@ -23,3 +23,4 @@ export const formatCurrency = (amount: number): string => {
         ? `${symbol} ${formattedAmount}`
         : `${formattedAmount} ${symbol}`;
 };
+

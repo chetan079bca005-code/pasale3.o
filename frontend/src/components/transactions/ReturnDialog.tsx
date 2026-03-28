@@ -1,6 +1,16 @@
+/**
+ * ReturnDialog Component
+ * 
+ * Modal dialog for creating and editing sales or purchase returns.
+ * Handles refund calculations and return tracking.
+ * 
+ * @component
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../../store/dataStore';
 import { Button } from '../ui/Button';
+import { getTodayDateString, extractDatePart } from '../../utils/nepaliDate';
 import {
   FiX,
   FiPlus,
@@ -46,7 +56,7 @@ export const ReturnDialog: React.FC<ReturnDialogProps> = ({
   const [partySearch, setPartySearch] = useState('');
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
   const [originalInvoice, setOriginalInvoice] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayDateString());
   const [returnNumber, setReturnNumber] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
     { id: '1', name: '', quantity: 1, rate: 0, price: 0, tax: 0, discount: 0, total: 0 },
@@ -82,7 +92,7 @@ export const ReturnDialog: React.FC<ReturnDialogProps> = ({
     if (editData) {
       setPartyId(editData.partyId || '');
       setOriginalInvoice(editData.originalInvoiceNumber || '');
-      setDate(editData.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
+      setDate(extractDatePart(editData.date));
       setReturnNumber(editData.transactionNumber || '');
       setItems(editData.items?.length ? editData.items : [
         { id: '1', name: '', quantity: 1, rate: 0, tax: 0, discount: 0, total: 0 },
@@ -218,7 +228,7 @@ export const ReturnDialog: React.FC<ReturnDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className={`px-6 py-4 ${isSalesReturn ? 'bg-gradient-to-r from-orange-600 to-orange-700' : 'bg-gradient-to-r from-amber-600 to-amber-700'}`}>
+        <div className={`px-6 py-4 ${isSalesReturn ? 'bg-linear-to-r from-orange-600 to-orange-700' : 'bg-linear-to-r from-amber-600 to-amber-700'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -539,3 +549,4 @@ export const ReturnDialog: React.FC<ReturnDialogProps> = ({
     </div>
   );
 };
+

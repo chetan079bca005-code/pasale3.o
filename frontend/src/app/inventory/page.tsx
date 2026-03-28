@@ -35,6 +35,7 @@ import {
 import { AddProductDialog } from '../../components/inventory/AddProductDialog';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
 import { apiClient, clearTokens, isAuthenticated } from '../../utils/apiClient';
+import { useSettingsStore } from '../../store/settingsStore';
 
 // API Configuration - Use environment variable or fallback
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -69,6 +70,8 @@ type ViewMode = 'grid' | 'table';
 export default function InventoryPage() {
   const { t, n, c, language } = useTranslation(); 
   const navigate = useNavigate(); 
+  const { featureSettings } = useSettingsStore();
+  const inventorySettings = featureSettings.inventory;
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +162,6 @@ export default function InventoryPage() {
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [showAdjustStock, setShowAdjustStock] = useState(false);
   const [adjustData, setAdjustData] = useState({ change: '', notes: '', type: 'in' as 'in' | 'out' });
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,47 +170,37 @@ export default function InventoryPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [stockFilter, setStockFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
 
-  const selectedProduct = useMemo(
-    () => (selectedProductId ? products.find((p) => p.id === selectedProductId) || null : null),
-    [products, selectedProductId]
-  );
-
   const categories = useMemo(
     () => Array.from(new Set(products.map((p) => p.category || 'Uncategorized'))),
     [products]
   );
 
-  const lowStockProducts = products.filter((p) => p.quantity > 0 && p.quantity <= (p.minStock || 5));
+  const lowStockThreshold = inventorySettings.lowStockThreshold || 5;
+  const lowStockProducts = products.filter((p) => p.quantity > 0 && p.quantity <= (p.minStock || lowStockThreshold));
   const outOfStockProducts = products.filter((p) => p.quantity === 0);
-  const inStockProducts = products.filter((p) => p.quantity > (p.minStock || 5));
+  const inStockProducts = products.filter((p) => p.quantity > (p.minStock || lowStockThreshold));
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const category = p.category || 'Uncategorized';
       if (selectedCategory && category !== selectedCategory) return false;
-      if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase()) && !(p.sku || '').toLowerCase().includes(searchQuery.toLowerCase())) {
+      if (
+        searchQuery
+        && !p.name.toLowerCase().includes(searchQuery.toLowerCase())
+        && (inventorySettings.enableSKU ? !(p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) : true)
+      ) {
         return false;
       }
-      if (stockFilter === 'in-stock' && p.quantity <= (p.minStock || 5)) return false;
-      if (stockFilter === 'low-stock' && (p.quantity === 0 || p.quantity > (p.minStock || 5))) return false;
+      if (stockFilter === 'in-stock' && p.quantity <= (p.minStock || lowStockThreshold)) return false;
+      if (stockFilter === 'low-stock' && (p.quantity === 0 || p.quantity > (p.minStock || lowStockThreshold))) return false;
       if (stockFilter === 'out-of-stock' && p.quantity > 0) return false;
       return true;
     });
-  }, [products, selectedCategory, searchQuery, stockFilter]);
+  }, [products, selectedCategory, searchQuery, stockFilter, inventorySettings.enableSKU, lowStockThreshold]);
 
   const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
   const totalCostValue = products.reduce((sum, p) => sum + ((p.costPrice || p.price) * p.quantity), 0);
   const potentialProfit = totalInventoryValue - totalCostValue;
-
-  const selectedMovements = useMemo(
-    () =>
-      selectedProductId
-        ? movements
-          .filter((m) => m.productId === selectedProductId)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        : [],
-    [movements, selectedProductId]
-  );
 
   const handleOpenAdd = () => {
     setIsEditing(false);
@@ -219,7 +211,6 @@ export default function InventoryPage() {
   const handleOpenEdit = (product: Product) => {
     setIsEditing(true);
     setEditingId(product.id);
-    setSelectedProductId(null);
     setShowForm(true);
   };
 
@@ -250,53 +241,9 @@ export default function InventoryPage() {
       }
       alert(err.message || 'Failed to delete product. Please try again.');
     }
-    setSelectedProductId(null);
   };
 
-  const handleAdjustStockSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProductId || !adjustData.change) return;
-
-    let changeAmount = parseInt(adjustData.change);
-    if (isNaN(changeAmount) || changeAmount === 0) return;
-
-    if (adjustData.type === 'out') changeAmount = -Math.abs(changeAmount);
-    else changeAmount = Math.abs(changeAmount);
-
-    // Find the product and calculate new quantity
-    const product = products.find(p => p.id === selectedProductId);
-    if (!product) return;
-    
-    const newQuantity = Math.max(0, product.quantity + changeAmount);
-    
-    // Update via API with automatic token refresh
-    try {
-      if (!isAuthenticated()) {
-        alert('Please login to adjust stock');
-        navigate('/login');
-        return;
-      }
-      
-      await apiClient.put(`/products/?id=${selectedProductId}`, { quantity: newQuantity });
-      
-      await fetchProducts(); // Refresh from API
-      setMovements((prev) => [
-        { id: `m-${Date.now()}`, productId: selectedProductId, date: new Date().toISOString(), change: changeAmount, notes: adjustData.notes || 'Manual adjustment', staff: 'Admin', type: adjustData.type },
-        ...prev,
-      ]);
-    } catch (err: any) {
-      console.error('Error adjusting stock:', err);
-      if (err.message?.includes('session') || err.message?.includes('login')) {
-        clearTokens();
-        navigate('/login');
-        return;
-      }
-      alert(err.message || 'Failed to adjust stock. Please try again.');
-    }
-
-    setAdjustData({ change: '', notes: '', type: 'in' });
-    setShowAdjustStock(false);
-  };
+  // Stock adjustment is now handled on the product detail page
 
   const handleQRScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,15 +392,17 @@ export default function InventoryPage() {
             subtitle={`${t('inventory.profit')}: ${c(potentialProfit)}`}
           />
 
-          <KPICard
-            title={t('inventory.lowStock')}
-            value={lowStockProducts.length}
-            borderColor="amber"
-            onClick={() => setStockFilter('low-stock')}
-            icon={<FiAlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />}
-            subtitle={t('inventory.needsReorder')}
-            isCurrency={false}
-          />
+          {inventorySettings.lowStockAlert && (
+            <KPICard
+              title={t('inventory.lowStock')}
+              value={lowStockProducts.length}
+              borderColor="amber"
+              onClick={() => setStockFilter('low-stock')}
+              icon={<FiAlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />}
+              subtitle={t('inventory.needsReorder')}
+              isCurrency={false}
+            />
+          )}
 
           <KPICard
             title={t('inventory.outOfStock')}
@@ -473,7 +422,7 @@ export default function InventoryPage() {
             {[
               { id: 'all' as const, label: t('common.all'), count: products.length, color: '' },
               { id: 'in-stock' as const, label: t('inventory.inStock'), count: inStockProducts.length, color: 'text-emerald-600' },
-              { id: 'low-stock' as const, label: t('inventory.lowStock'), count: lowStockProducts.length, color: 'text-amber-600' },
+              ...(inventorySettings.lowStockAlert ? [{ id: 'low-stock' as const, label: t('inventory.lowStock'), count: lowStockProducts.length, color: 'text-amber-600' }] : []),
               { id: 'out-of-stock' as const, label: t('inventory.outOfStock'), count: outOfStockProducts.length, color: 'text-red-600' },
             ].map((tab) => (
               <button
@@ -534,7 +483,8 @@ export default function InventoryPage() {
                 <FiList className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
-            <Button variant="outline" size="sm" onClick={() => console.log('Export')} className="text-xs sm:text-sm">
+            {/* TODO: Implement actual export functionality */}
+            <Button variant="outline" size="sm" onClick={() => alert('Export feature coming soon!')} className="text-xs sm:text-sm">
               <FiDownload className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               <span className="hidden sm:inline">{t('common.export')}</span>
               <span className="sm:hidden">Export</span>
@@ -598,7 +548,7 @@ export default function InventoryPage() {
               <Card
                 key={product.id}
                 className="overflow-hidden hover:shadow-xl transition-all cursor-pointer group border-2 border-transparent hover:border-blue-500/30"
-                onClick={() => setSelectedProductId(product.id)}
+                onClick={() => navigate(`/inventory/${product.id}`)}
               >
                 {/* Product Image */}
                 <div className="h-32 sm:h-36 lg:h-40 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative">
@@ -629,7 +579,9 @@ export default function InventoryPage() {
                   <div className="flex items-start justify-between mb-1.5 sm:mb-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-gray-900 dark:text-gray-100 truncate text-sm sm:text-base">{product.name}</h3>
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-mono">{product.sku}</p>
+                      {inventorySettings.enableSKU && (
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-mono">{product.sku}</p>
+                      )}
                     </div>
                     <input
                       type="checkbox"
@@ -694,7 +646,9 @@ export default function InventoryPage() {
                     </th>
                     <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.product')}</th>
                     <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.category')}</th>
-                    <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.sku')}</th>
+                    {inventorySettings.enableSKU && (
+                      <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.sku')}</th>
+                    )}
                     <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.stock')}</th>
                     <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.price')}</th>
                     <th className="p-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">{t('inventory.status')}</th>
@@ -706,7 +660,7 @@ export default function InventoryPage() {
                     <tr
                       key={product.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                      onClick={() => setSelectedProductId(product.id)}
+                      onClick={() => navigate(`/inventory/${product.id}`)}
                     >
                       <td className="p-4" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -734,7 +688,9 @@ export default function InventoryPage() {
                         </div>
                       </td>
                       <td className="p-4 text-sm text-gray-600 dark:text-gray-400">{product.category || '—'}</td>
-                      <td className="p-4 text-sm text-gray-600 dark:text-gray-400 font-mono">{product.sku || 'N/A'}</td>
+                      {inventorySettings.enableSKU && (
+                        <td className="p-4 text-sm text-gray-600 dark:text-gray-400 font-mono">{product.sku || 'N/A'}</td>
+                      )}
                       <td className="p-4">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${product.quantity === 0
                           ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -823,194 +779,10 @@ export default function InventoryPage() {
             </Card>
           </div>
         )}
-
-        {/* Product Detail Modal */}
-        {selectedProduct && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-              {/* Header */}
-              <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                    {selectedProduct.image ? (
-                      <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <FiPackage className="w-10 h-10 text-gray-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{selectedProduct.name}</h2>
-                    <p className="text-gray-500 dark:text-gray-400 font-mono">{selectedProduct.sku}</p>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${selectedProduct.status === 'active'
-                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
-                      }`}>
-                      {selectedProduct.status === 'active' ? <FiCheck className="w-3 h-3" /> : <FiX className="w-3 h-3" />}
-                      {selectedProduct.status === 'active' ? t('inventory.active') : t('inventory.inactive')}
-                    </span>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedProductId(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                  <FiX className="w-6 h-6" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">{t('inventory.currentStock')}</p>
-                    <p className={`text-2xl font-bold ${selectedProduct.quantity === 0 ? 'text-red-600' : selectedProduct.quantity <= (selectedProduct.minStock || 5) ? 'text-amber-600' : 'text-emerald-600'
-                      }`}>
-                      {n(selectedProduct.quantity)} {selectedProduct.unit || 'pcs'}
-                    </p>
-                  </div>
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">{t('inventory.sellingPrice')}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{c(selectedProduct.price)}</p>
-                  </div>
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">{t('inventory.costPrice')}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{c(selectedProduct.costPrice || selectedProduct.price)}</p>
-                  </div>
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">{t('inventory.stockValue')}</p>
-                    <p className="text-2xl font-bold text-emerald-600">{c(selectedProduct.price * selectedProduct.quantity)}</p>
-                  </div>
-                </div>
-
-                {/* Description */}
-                {selectedProduct.description && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('common.description')}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{selectedProduct.description}</p>
-                  </div>
-                )}
-
-                {/* Stock Movement History */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{t('inventory.stockMovementHistory')}</h3>
-                  {selectedMovements.length === 0 ? (
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">{t('inventory.noStockMovements')}</p>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {selectedMovements.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${m.change >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'
-                              }`}>
-                              {m.change >= 0 ? <FiTrendingUp className="w-4 h-4" /> : <FiTrendingDown className="w-4 h-4" />}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{m.notes}</p>
-                              <p className="text-xs text-gray-500">{new Date(m.date).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                          <span className={`font-bold ${m.change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {m.change >= 0 ? '+' : ''}{n(m.change)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-wrap gap-3">
-                  <Button onClick={() => setShowAdjustStock(true)}>
-                    <FiRefreshCw className="w-4 h-4 mr-2" />
-                    {t('inventory.adjustStock')}
-                  </Button>
-                  <Button variant="outline" onClick={() => handleOpenEdit(selectedProduct)}>
-                    <FiEdit2 className="w-4 h-4 mr-2" />
-                    {t('inventory.editProduct')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="text-red-600 border-red-200 hover:bg-red-50"
-                    onClick={() => {
-                      if (confirm(t('inventory.deleteItemConfirm'))) {
-                        setProducts(products.filter(p => p.id !== selectedProduct.id));
-                        setSelectedProductId(null);
-                      }
-                    }}
-                  >
-                    <FiTrash2 className="w-4 h-4 mr-2" />
-                    {t('common.delete')}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
         </>
-        )}
-
-        {/* Adjust Stock Modal */}
-        {showAdjustStock && selectedProduct && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-60 p-4">
-            <Card className="w-full max-w-md p-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                {t('inventory.adjustStock')}: {selectedProduct.name}
-              </h3>
-              <form onSubmit={handleAdjustStockSubmit} className="space-y-4">
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl text-center">
-                  <p className="text-sm text-gray-500 mb-1">{t('inventory.currentQuantity')}</p>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{n(selectedProduct.quantity)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustData({ ...adjustData, type: 'in' })}
-                    className={`flex-1 p-3 rounded-xl font-semibold transition-colors ${adjustData.type === 'in'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}
-                  >
-                    <FiTrendingUp className="w-5 h-5 mx-auto mb-1" />
-                    {t('inventory.stockIn')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustData({ ...adjustData, type: 'out' })}
-                    className={`flex-1 p-3 rounded-xl font-semibold transition-colors ${adjustData.type === 'out'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}
-                  >
-                    <FiTrendingDown className="w-5 h-5 mx-auto mb-1" />
-                    {t('inventory.stockOut')}
-                  </button>
-                </div>
-                <Input
-                  label={t('inventory.quantity')}
-                  type="number"
-                  value={adjustData.change}
-                  onChange={(e) => setAdjustData({ ...adjustData, change: e.target.value })}
-                  placeholder="Enter quantity"
-                  required
-                  min="1"
-                />
-                <Input
-                  label={t('inventory.reasonNotes')}
-                  value={adjustData.notes}
-                  onChange={(e) => setAdjustData({ ...adjustData, notes: e.target.value })}
-                  placeholder="e.g., Received from supplier, Sold to customer..."
-                />
-                <div className="flex gap-3 pt-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAdjustStock(false)}>
-                    {t('common.cancel')}
-                  </Button>
-                  <Button type="submit" className="flex-1">
-                    {t('inventory.saveAdjustment')}
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
         )}
       </div>
     </div>
   );
 }
+

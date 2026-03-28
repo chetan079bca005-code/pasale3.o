@@ -214,3 +214,4 @@ export const ReportView: React.FC<ReportViewProps> = ({ onPrint, onDownload }) =
   );
 };
 
+

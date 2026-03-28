@@ -1,3 +1,12 @@
+/**
+ * Sidebar Component
+ * 
+ * Main navigation sidebar with collapsible functionality and mobile support.
+ * Handles navigation, logout, and responsive design.
+ * 
+ * @component
+ */
+
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
@@ -17,15 +26,21 @@ import {
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 
-// Wrapper component to make NepaliRupeeIcon work like react-icons
+/**
+ * Wrapper component to make NepaliRupeeIcon compatible with react-icons interface
+ */
 const RupeeIcon: React.FC<{ className?: string }> = ({ className }) => (
   <NepaliRupeeIcon className={className} />
 );
 
 interface SidebarProps {
+  /** Whether sidebar is open (mobile) */
   isOpen?: boolean;
+  /** Callback to close sidebar */
   onClose?: () => void;
+  /** Whether sidebar is collapsed (desktop) */
   isCollapsed?: boolean;
+  /** Callback to toggle collapse state */
   onToggleCollapse?: () => void;
 }
 
@@ -35,10 +50,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const { t } = useTranslation();
   const logout = useAuthStore((state) => state.logout);
 
+  /**
+   * Handles user logout
+   * Clears auth state and navigates to welcome page using React Router
+   */
   const handleLogout = () => {
     logout();
     onClose?.();
-    window.location.href = '/welcome';
+    // Use navigate instead of window.location.href for proper SPA navigation
+    navigate('/welcome', { replace: true });
   };
 
   const menuItems = [
@@ -139,3 +159,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     </>
   );
 };
+

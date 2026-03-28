@@ -162,3 +162,4 @@ export const LowStockAlert: React.FC<LowStockAlertProps> = ({ items }) => {
   );
 };
 
+

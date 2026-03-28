@@ -43,8 +43,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             return;
           }
         }
-      } catch (e) {
-        console.error('Error parsing auth storage:', e);
+      } catch {
+        // Failed to parse auth storage - will fall back to store values
       }
 
       // Fallback to store values
@@ -64,7 +64,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     fetchUserName();
   }, [userProfile, storeBizName]);
 
-  // Get greeting based on time of day
+  /**
+   * Returns appropriate greeting based on current time of day
+   * @returns Greeting string (Morning/Afternoon/Evening)
+   */
   const getTimeGreeting = (): string => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -97,3 +100,4 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     </div>
   );
 };
+

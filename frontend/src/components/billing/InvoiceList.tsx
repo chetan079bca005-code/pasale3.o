@@ -4,8 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { useDataStore, Transaction } from '../../store/dataStore';
-import { useLanguageStore } from '../../store/languageStore';
-import { formatCurrency } from '../../utils/nepaliDate';
+import { useTranslation } from '../../utils/i18n';
 import { KPICard } from '../dashboard/KPICard';
 
 interface InvoiceListProps {
@@ -16,7 +15,7 @@ interface InvoiceListProps {
 
 export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewInvoice, hideHeader = false }) => {
   const { transactions, deleteTransaction } = useDataStore();
-  const { language } = useLanguageStore();
+  const { c, d } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all');
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -26,11 +25,20 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewIn
   // Filter transactions to only show selling type (invoices)
   const invoices = transactions.filter((t) => t.type === 'selling');
 
-  // Mock status - in real app, this would come from invoice data
+  // Get invoice status from transaction data
+  // Uses paymentStatus field if available, otherwise derives from description and date
   const getInvoiceStatus = (invoice: Transaction): 'Paid' | 'Unpaid' | 'Overdue' => {
-    // Check for [PAID] marker in description
+    // First check if paymentStatus is set on the transaction
+    if (invoice.paymentStatus) {
+      if (invoice.paymentStatus === 'paid') return 'Paid';
+      if (invoice.paymentStatus === 'overdue') return 'Overdue';
+      return 'Unpaid';
+    }
+    
+    // Check for [PAID] marker in description (legacy support)
     if (invoice.description?.includes('[PAID]')) return 'Paid';
 
+    // Calculate based on date if no status is set
     const invoiceDate = new Date(invoice.date);
     const daysDiff = Math.floor((new Date().getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -70,10 +78,10 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewIn
       ...paginatedInvoices.map((inv) =>
         [
           inv.id,
-          new Date(inv.date).toLocaleDateString(),
+          d(inv.date),
           inv.partyName || 'N/A',
           getInvoiceStatus(inv),
-          formatCurrency(inv.amount, language),
+          c(inv.amount),
           'N/A',
           inv.description || 'N/A',
         ].join(',')
@@ -277,11 +285,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewIn
                       {invoice.id}
                     </td>
                     <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {new Date(invoice.date).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      {d(invoice.date)}
                     </td>
                     <td className="px-6 py-3 text-sm text-gray-900 dark:text-gray-100">
                       <div className="flex items-center gap-2">
@@ -306,7 +310,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewIn
                       {invoice.description}
                     </td>
                     <td className="px-6 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(invoice.amount, language)}
+                      {c(invoice.amount)}
                     </td>
                     <td className="px-6 py-3 text-sm">
                       <div className="relative">
@@ -406,3 +410,4 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onNewInvoice, onViewIn
     </div>
   );
 };
+

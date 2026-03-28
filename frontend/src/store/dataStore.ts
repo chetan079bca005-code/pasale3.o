@@ -1,17 +1,23 @@
 import { create } from 'zustand';
 
 // Types
+/**
+ * Transaction represents a financial transaction in the system
+ */
 export interface Transaction {
   id: string;
   type: 'purchase' | 'selling' | 'expense' | 'payment_in' | 'payment_out' | 'quotation' | 'sales_return' | 'purchase_return' | 'income';
   amount: number;
   date: string;
+  dueDate?: string;
   description: string;
   partyId?: string;
   partyName?: string;
   items?: TransactionItem[];
   notes?: string;
   transactionNumber?: string;
+  /** Payment status for invoices - 'paid', 'unpaid', or 'overdue' */
+  paymentStatus?: 'paid' | 'unpaid' | 'overdue';
 }
 
 export interface TransactionItem {
@@ -29,6 +35,7 @@ export interface Party {
   phone?: string;
   email?: string;
   address?: string;
+  photo?: string | null;
   balance: number; // Positive = receivable, Negative = payable
 }
 
@@ -347,3 +354,4 @@ export const useDataStore = create<DataState>((set, get) => ({
     });
   },
 }));
+

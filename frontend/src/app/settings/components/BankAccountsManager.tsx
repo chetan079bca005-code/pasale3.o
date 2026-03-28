@@ -105,3 +105,4 @@ export const BankAccountsManager: React.FC = () => {
         </div>
     );
 };
+

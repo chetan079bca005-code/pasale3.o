@@ -166,6 +166,7 @@ const handleApiError = async (response: Response): Promise<never> => {
 export interface ApiPartyData {
   Category_type: 'Customer' | 'Supplier';
   is_active?: boolean;
+  photo?: string | null;
   // Customer fields
   name: string;
   email?: string;
@@ -189,6 +190,7 @@ export interface ApiPartyResponse {
     Category_type: string;
     is_active: boolean;
     is_updated_at: string;
+    photo?: string | null;
   };
   customer?: {
     id: number;
@@ -222,6 +224,7 @@ export interface ApiPartiesListResponse {
     Category_type: string;
     is_active: boolean;
     is_updated_at: string;
+    photo?: string | null;
   }>;
 }
 
@@ -415,6 +418,107 @@ export const clearAuthTokens = () => {
 };
 
 // ================================
+// PRODUCT API
+// ================================
+
+export interface ProductData {
+  product_name: string;
+  category: number; // Category ID
+  sku?: string;
+  product_Img?: string;
+  unit_price: number;
+  quantity: number;
+  description?: string;
+}
+
+export interface ProductResponse {
+  message: string;
+  product: {
+    id: number;
+    user: number;
+    product_name: string;
+    category: number;
+    sku: string;
+    product_Img: string | null;
+    unit_price: string;
+    quantity: number;
+    description: string | null;
+  };
+}
+
+export interface ProductsListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Array<{
+    id: number;
+    user: number;
+    product_name: string;
+    category: number;
+    sku: string;
+    product_Img: string | null;
+    unit_price: string;
+    quantity: number;
+    description: string | null;
+  }>;
+}
+
+export const productApi = {
+  // Get all products
+  getAll: async (): Promise<ProductsListResponse> => {
+    const response = await fetchWithAuth('/products/');
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Get single product by ID
+  getById: async (id: number): Promise<ProductResponse> => {
+    const response = await fetchWithAuth(`/products/${id}`);
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Create new product
+  create: async (data: ProductData): Promise<ProductResponse> => {
+    const response = await fetchWithAuth('/products/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Update product
+  update: async (id: number, data: Partial<ProductData>): Promise<ProductResponse> => {
+    const response = await fetchWithAuth(`/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+
+  // Delete product
+  delete: async (id: number): Promise<{ message: string }> => {
+    const response = await fetchWithAuth(`/products/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+};
+
+// ================================
 // BILLING API
 // ================================
 
@@ -552,11 +656,150 @@ export const billingApi = {
   },
 };
 
+// ================================
+// SETTINGS API
+// ================================
+
+export interface GeneralSettingsPayload {
+  appearance?: 'light' | 'classic' | 'dark';
+  language?: 'en' | 'np';
+  currency?: 'NPR' | 'INR' | 'USD';
+  currencyPosition?: 'start' | 'end';
+  calendarType?: 'AD' | 'BS';
+  dateFormat?: 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'MM-DD-YYYY' | 'BS';
+  timeFormat?: '12h' | '24h';
+  numberFormat?: 'international' | 'indian';
+  privacyMode?: boolean;
+  appLock?: boolean;
+  appLockPin?: string;
+}
+
+export interface BankAccountPayload {
+  id?: string;
+  bankName: string;
+  accountNumber: string;
+  accountHolderName: string;
+  branch?: string;
+  isPrimary: boolean;
+}
+
+export interface BusinessProfilePayload {
+  businessName?: string;
+  businessContactNumber?: string;
+  businessEmail?: string;
+  businessCategory?: string;
+  businessType?: string;
+  province?: string;
+  district?: string;
+  municipality?: string;
+  streetAddress?: string;
+  registrationNumber?: string;
+  bankAccounts?: BankAccountPayload[];
+  businessLogo?: string | null;
+}
+
+export interface FeatureSettingsPayload {
+  parties?: {
+    partyCategory?: boolean;
+    uploadPartyImage?: boolean;
+  };
+  inventory?: {
+    enableBarcode?: boolean;
+    enableSKU?: boolean;
+    lowStockAlert?: boolean;
+    lowStockThreshold?: number;
+    enableCategories?: boolean;
+    trackCostPrice?: boolean;
+  };
+  transactions?: {
+    autoGenerateInvoiceNumber?: boolean;
+    defaultPaymentMethod?: string;
+    enablePaymentReminders?: boolean;
+    reminderDays?: number;
+    showSignature?: boolean;
+    defaultNotes?: string;
+  };
+  invoicePrint?: {
+    paperSize?: 'A4' | 'A5' | 'thermal';
+    showLogo?: boolean;
+    showBusinessDetails?: boolean;
+    showCustomerDetails?: boolean;
+    showPaymentInfo?: boolean;
+    footerText?: string;
+    printCopies?: number;
+  };
+}
+
+export interface SubscriptionPayload {
+  plan?: 'free' | 'basic' | 'pro' | 'enterprise';
+  expiryDate?: string;
+  features?: string[];
+}
+
+export interface SettingsResponse {
+  general: GeneralSettingsPayload;
+  business_profile: BusinessProfilePayload;
+  feature_settings: FeatureSettingsPayload;
+  subscription: SubscriptionPayload;
+}
+
+export interface ProfileResponse {
+  id: number;
+  username: string;
+  email: string;
+  profile: {
+    phone_no?: string;
+    business_name?: string;
+    photo?: string | null;
+    is_verify?: boolean;
+  };
+}
+
+export const settingsApi = {
+  get: async (): Promise<SettingsResponse> => {
+    const response = await fetchWithAuth('/settings/');
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+  update: async (data: Partial<SettingsResponse>): Promise<SettingsResponse> => {
+    const response = await fetchWithAuth('/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+  getProfile: async (): Promise<ProfileResponse> => {
+    const response = await fetchWithAuth('/settings/profile/');
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+  updateProfile: async (data: Partial<ProfileResponse & { phone_no?: string; business_name?: string; photo?: string | null }>): Promise<ProfileResponse> => {
+    const response = await fetchWithAuth('/settings/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response.json();
+  },
+};
+
 export default {
   auth: authApi,
   party: partyApi,
   expense: expenseApi,
+  product: productApi,
   billing: billingApi,
+  settings: settingsApi,
   setAuthTokens,
   clearAuthTokens,
 };
+

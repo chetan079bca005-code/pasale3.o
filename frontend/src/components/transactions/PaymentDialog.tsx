@@ -1,6 +1,17 @@
+/**
+ * PaymentDialog Component
+ * 
+ * Modal dialog for recording payment in (from customers) or 
+ * payment out (to suppliers) transactions.
+ * 
+ * @component
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { Button } from '../ui/Button';
+import { getTodayDateString, extractDatePart } from '../../utils/nepaliDate';
 import {
   FiX,
   FiUser,
@@ -35,6 +46,8 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   onSuccess,
 }) => {
   const { parties, addTransaction, updateTransaction } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
   const isEdit = !!editData;
   const isPaymentIn = type === 'payment_in';
 
@@ -42,11 +55,13 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [partyId, setPartyId] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayDateString());
   const [amount, setAmount] = useState<number>(0);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(
+    (transactionSettings.defaultPaymentMethod as PaymentMode) || 'cash'
+  );
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(transactionSettings.defaultNotes || '');
   const [receiptNumber, setReceiptNumber] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +87,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   useEffect(() => {
     if (editData) {
       setPartyId(editData.partyId || '');
-      setDate(editData.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
+      setDate(extractDatePart(editData.date));
       setAmount(editData.totalAmount || editData.amount || 0);
       setPaymentMode(editData.paymentMode || 'cash');
       setReferenceNumber(editData.referenceNumber || '');
@@ -164,7 +179,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className={`px-6 py-4 ${isPaymentIn ? 'bg-gradient-to-r from-green-600 to-green-700' : 'bg-gradient-to-r from-red-600 to-red-700'}`}>
+        <div className={`px-6 py-4 ${isPaymentIn ? 'bg-linear-to-r from-green-600 to-green-700' : 'bg-linear-to-r from-red-600 to-red-700'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -399,3 +414,4 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
     </div>
   );
 };
+

@@ -118,10 +118,10 @@ export default function SignupPage() {
     try {
       const response = await authApi.signup(formData);
       
-      // Store debug OTP if available (development mode)
+      // Store debug OTP if available (development mode only)
+      // This allows testing without email in development
       if (response.debug_otp) {
         setDebugOtp(response.debug_otp);
-        console.log('Debug OTP:', response.debug_otp);
       }
       
       // Move to OTP step
@@ -260,7 +260,7 @@ export default function SignupPage() {
               {/* API Error Display */}
               {apiError && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                  <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <FiAlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                   <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
                 </div>
               )}
@@ -454,7 +454,7 @@ export default function SignupPage() {
               {/* API Error Display */}
               {apiError && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                  <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <FiAlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                   <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
                 </div>
               )}
@@ -538,3 +538,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

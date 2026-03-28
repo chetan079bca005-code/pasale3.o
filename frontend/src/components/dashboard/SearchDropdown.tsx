@@ -133,3 +133,4 @@ export const SearchDropdown: React.FC<SearchDropdownProps> = ({ query, onClose }
   );
 };
 
+

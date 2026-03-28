@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card } from '../ui/Card';
 import { useTranslation } from '../../utils/i18n';
+import { useSettingsStore } from '../../store/settingsStore';
 import { FiTrendingUp, FiTrendingDown, FiCreditCard, FiArrowRight } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 
@@ -28,6 +29,8 @@ export const KPICard: React.FC<KPICardProps> = ({
   isCurrency = true
 }) => {
   const { c, n, language } = useTranslation();
+  const { general } = useSettingsStore();
+  const isPrivate = general.privacyMode;
 
   const borderColors = {
     green: 'border-l-emerald-500 hover:border-l-emerald-600',
@@ -122,11 +125,11 @@ export const KPICard: React.FC<KPICardProps> = ({
 
         {/* Value */}
         <p className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1 transition-transform duration-300 group-hover:scale-105 origin-left truncate">
-          {formatValue(value)}
+          {isPrivate ? '••••' : formatValue(value)}
         </p>
 
         {/* Change indicator */}
-        {change !== undefined && (
+        {!isPrivate && change !== undefined && (
           <div className={`flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-semibold ${changeType === 'positive' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
             }`}>
             <span className={`inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full text-[10px] sm:text-xs ${changeType === 'positive' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'
@@ -138,7 +141,7 @@ export const KPICard: React.FC<KPICardProps> = ({
         )}
 
         {/* Optional subtitle */}
-        {subtitle && (
+        {subtitle && !isPrivate && (
           <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1.5 sm:mt-2 truncate">
             {subtitle}
           </p>
@@ -154,3 +157,4 @@ export const KPICard: React.FC<KPICardProps> = ({
     </Card>
   );
 };
+

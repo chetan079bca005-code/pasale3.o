@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDataStore, Party } from '../../store/dataStore';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -26,6 +26,7 @@ import {
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 import { useTranslation } from '../../utils/i18n';
 import { partyApi, ApiPartyData } from '../../utils/api';
+import { useSettingsStore } from '../../store/settingsStore';
 
 interface AddPartyDialogProps {
   onClose: () => void;
@@ -42,6 +43,8 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
 }) => {
   const { t } = useTranslation();
   const { addParty, updateParty } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const partySettings = featureSettings.parties;
 
   // Common fields
   const [formData, setFormData] = useState({
@@ -50,6 +53,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
     phone: initialData?.phone || '',
     email: initialData?.email || '',
     address: initialData?.address || '',
+    photo: initialData?.photo || null as string | null,
     // Customer specific
     customerCode: '',
     dateOfBirth: '',
@@ -82,6 +86,15 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'financial' | 'additional'>('basic');
+
+  useEffect(() => {
+    if (!partySettings.partyCategory && !isEdit) {
+      setFormData((prev) => ({
+        ...prev,
+        type: (defaultType || 'customer') as 'customer' | 'supplier',
+      }));
+    }
+  }, [defaultType, isEdit, partySettings.partyCategory]);
 
   // Validation state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -147,6 +160,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
           email: formData.email || undefined,
           phone_no: formData.phone || undefined,
           address: formData.address || undefined,
+          photo: formData.photo || undefined,
         };
 
         if (formData.type === 'customer') {
@@ -172,6 +186,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
           phone: formData.phone || undefined,
           email: formData.email || undefined,
           address: formData.address || undefined,
+          photo: formData.photo || null,
         };
         updateParty(updatedParty);
       } else {
@@ -183,6 +198,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
           email: formData.email || undefined,
           phone_no: formData.phone || undefined,
           address: formData.address || undefined,
+          photo: formData.photo || undefined,
         };
 
         if (formData.type === 'customer') {
@@ -209,6 +225,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
           phone: formData.phone || undefined,
           email: formData.email || undefined,
           address: formData.address || undefined,
+          photo: formData.photo || null,
           balance: parseFloat(formData.openingBalance) || 0,
         };
         addParty(newParty);
@@ -227,12 +244,22 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
 
   const isCustomer = formData.type === 'customer';
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, photo: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-3xl bg-white dark:bg-gray-900 rounded-2xl max-h-[95vh] overflow-hidden shadow-2xl">
         {/* Header with gradient */}
         <div
-          className={`${isCustomer ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} px-6 py-5 text-white`}
+          className={`${isCustomer ? 'bg-linear-to-r from-blue-600 to-blue-700' : 'bg-linear-to-r from-purple-600 to-purple-700'} px-6 py-5 text-white`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -276,7 +303,7 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
 
         <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-180px)]">
           {/* Party Type Selection */}
-          {!isEdit && !defaultType && (
+          {!isEdit && !defaultType && partySettings.partyCategory && (
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
               <label className="block text-sm font-bold mb-3 text-gray-700 dark:text-gray-300">
                 <FiTag className="w-4 h-4 inline mr-2" />
@@ -438,6 +465,29 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
                       className="w-full px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder={t('companyNamePlaceholder')}
                     />
+                  </div>
+                )}
+
+                {partySettings.uploadPartyImage && (
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
+                      {formData.photo ? (
+                        <img src={formData.photo} alt="Party" className="w-full h-full object-cover" />
+                      ) : (
+                        <FiUser className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                        Upload Photo
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="block text-sm text-gray-600 dark:text-gray-400"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -845,8 +895,8 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
               disabled={loading || !isFormValid()}
               className={`flex-1 inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-white transition-all ${
                 isCustomer
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
-                  : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800'
+                  ? 'bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+                  : 'bg-linear-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800'
               } disabled:opacity-50 disabled:cursor-not-allowed shadow-lg`}
             >
               {loading ? (
@@ -880,3 +930,4 @@ export const AddPartyDialog: React.FC<AddPartyDialogProps> = ({
     </div>
   );
 };
+

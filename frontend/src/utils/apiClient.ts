@@ -1,26 +1,49 @@
 /**
  * Enhanced API Client with JWT Token Refresh
- * Handles automatic token refresh on 401 errors
+ * 
+ * This module provides a robust API client that handles:
+ * - Automatic token refresh on 401 errors
+ * - Request queuing during token refresh
+ * - Consistent error handling
+ * - CRUD operation helpers
+ * 
+ * @module apiClient
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
-// Track if we're currently refreshing the token
+/** Flag to prevent multiple simultaneous token refresh attempts */
 let isRefreshing = false;
+/** Queue of callbacks waiting for token refresh to complete */
 let refreshSubscribers: Array<(token: string) => void> = [];
 
-// Subscribe to token refresh
+/**
+ * Subscribe to token refresh event
+ * Used when multiple requests are made during a token refresh
+ * 
+ * @param callback - Function to call with new token when refresh completes
+ */
 const subscribeTokenRefresh = (callback: (token: string) => void) => {
   refreshSubscribers.push(callback);
 };
 
-// Notify all subscribers with new token
+/**
+ * Notify all subscribers with the new access token
+ * Called after successful token refresh
+ * 
+ * @param token - The new access token
+ */
 const onRefreshed = (token: string) => {
   refreshSubscribers.forEach((callback) => callback(token));
   refreshSubscribers = [];
 };
 
-// Get tokens from storage
+/**
+ * Retrieves the access token from storage
+ * Checks multiple possible locations for compatibility
+ * 
+ * @returns The access token or null if not found
+ */
 export const getAccessToken = (): string | null => {
   try {
     // First try the direct auth_token (set by login page)
@@ -44,11 +67,16 @@ export const getAccessToken = (): string | null => {
       }
     }
   } catch {
-    // ignore
+    // Silent fail - no token available
   }
   return null;
 };
 
+/**
+ * Retrieves the refresh token from storage
+ * 
+ * @returns The refresh token or null if not found
+ */
 export const getRefreshToken = (): string | null => {
   try {
     // First try direct refresh_token
@@ -66,11 +94,16 @@ export const getRefreshToken = (): string | null => {
       }
     }
   } catch {
-    // ignore
+    // Silent fail - no token available
   }
   return null;
 };
 
+/**
+ * Checks if user is authenticated based on token presence
+ * 
+ * @returns True if an access token exists
+ */
 export const isAuthenticated = (): boolean => {
   return !!getAccessToken();
 };
@@ -127,12 +160,17 @@ export const clearTokens = () => {
   }
 };
 
-// Refresh the access token
+/**
+ * Refreshes the access token using the refresh token
+ * Clears all tokens on failure
+ * 
+ * @returns The new access token or null on failure
+ */
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
 
   if (!refreshToken) {
-    console.log('No refresh token available');
+    // No refresh token available - user needs to login again
     return null;
   }
 
@@ -146,8 +184,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     });
 
     if (!response.ok) {
-      console.error('Token refresh failed:', response.status);
-      // If refresh fails, clear all tokens
+      // Token refresh failed - clear all tokens and require re-login
       clearTokens();
       return null;
     }
@@ -157,13 +194,12 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
     if (newAccessToken) {
       setTokens(newAccessToken, data.refresh || refreshToken);
-      console.log('Token refreshed successfully');
       return newAccessToken;
     }
 
     return null;
-  } catch (error) {
-    console.error('Token refresh error:', error);
+  } catch {
+    // Network error or other issue - clear tokens for security
     clearTokens();
     return null;
   }
@@ -213,8 +249,10 @@ class ApiClient {
               headers,
             });
           } else {
-            // Token refresh failed, redirect to login
-            window.location.href = '/login';
+            // Token refresh failed - clear tokens and return error
+            // Note: Redirect to login should be handled by the calling component
+            // using React Router's navigate() function
+            clearTokens();
             return { data: null, error: 'Session expired. Please login again.', status: 401 };
           }
         } else {
@@ -251,11 +289,11 @@ class ApiClient {
 
       const data = await response.json();
       return { data, error: null, status: response.status };
-    } catch (error) {
-      console.error('API request error:', error);
+    } catch {
+      // Network error - return generic error response
       return {
         data: null,
-        error: error instanceof Error ? error.message : 'Network error',
+        error: 'Network error. Please check your connection.',
         status: 0
       };
     }

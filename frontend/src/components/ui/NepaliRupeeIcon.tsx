@@ -30,3 +30,4 @@ export const NepaliRupeeIcon: React.FC<NepaliRupeeIconProps> = ({ className = ''
 };
 
 export default NepaliRupeeIcon;
+

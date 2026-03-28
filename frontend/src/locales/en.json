@@ -10,6 +10,8 @@
     "logoutConfirm": "Are you sure you want to log out?",
     "saveChanges": "Save Changes",
     "savedLocal": "All changes are saved locally",
+    "changesSaved": "All changes are saved",
+    "unsavedChanges": "Unsaved changes",
     "successUpdate": "Updated successfully!",
     "sections": {
       "myAccount": {
@@ -102,6 +104,7 @@
         "paperSize": "Paper Size",
         "showLogo": "Show Business Logo",
         "showBusinessDetails": "Show Business Details",
+        "showPaymentInfo": "Show Payment Info",
         "showTerms": "Show Terms & Conditions"
       },
       "subscription": {
@@ -520,7 +523,21 @@
     "createBill": "Create Bill",
     "enterPaymentAmount": "Enter payment amount:",
     "paymentRecorded": "Payment recorded:",
-    "recordPayment": "Record Payment"
+    "recordPayment": "Record Payment",
+    "itemName": "Item Name",
+    "taxPercent": "Tax %",
+    "invoiceDetails": "Invoice Details",
+    "customerDetails": "Customer Details",
+    "partyName": "Party Name",
+    "vatPan": "VAT/PAN (Optional)",
+    "livePreview": "Live Preview",
+    "billTo": "Bill To",
+    "walkIn": "Walk-in Customer",
+    "noItemsYet": "No items added yet",
+    "summary": "Summary",
+    "paidAmount": "Paid Amount",
+    "grandTotal": "Grand Total",
+    "saving": "Saving..."
   },
   "pos": {
     "title": "Point of Sale",
@@ -791,7 +808,10 @@
     "salesTrend": "Sales Trend",
     "expenseBreakdown": "Expense Breakdown",
     "outOfStock": "Out of Stock",
-    "reportsDescription": "Access all your business financial and operational reports in one place."
+    "reportsDescription": "Access all your business financial and operational reports in one place.",
+    "reportNotes": "Report Notes",
+    "exportAs": "Export As",
+    "email": "Email"
   },
   "electronics": "Electronics",
   "accessories": "Accessories",
@@ -962,7 +982,18 @@
     "describeExpense": "Describe the expense",
     "markNecessary": "Mark as necessary expense",
     "selectParty": "Select a party",
-    "transactionDesc": "Transaction description"
+    "transactionDesc": "Transaction description",
+    "pages": {
+      "dashboard": "Dashboard",
+      "inventory": "Inventory",
+      "billing": "Invoice",
+      "pos": "POS",
+      "transactions": "Transactions",
+      "parties": "Parties",
+      "reports": "Reports",
+      "expenses": "Expenses",
+      "settings": "Settings"
+    }
   },
   "common": {
     "save": "Save",

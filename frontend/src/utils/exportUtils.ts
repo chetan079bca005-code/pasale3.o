@@ -3,6 +3,9 @@
  * Handles Word (.docx), Excel (.xlsx), PDF, and HTML Report exports
  */
 
+import { useLanguageStore } from '../store/languageStore';
+import { formatDateString, formatTransactionDate } from './nepaliDate';
+
 interface ExportData {
   title: string;
   dateRange: { startDate: string; endDate: string };
@@ -25,7 +28,8 @@ export const exportToWord = async (data: ExportData) => {
     // Dynamically import docx library
     const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, HeightRule, BorderStyle, TextRun } = await import('docx');
 
-    const now = new Date().toLocaleDateString();
+    const language = useLanguageStore.getState().language;
+    const now = formatDateString(new Date().toISOString(), language);
     const statsRows = data.stats.map(stat => new TableRow({
       children: [
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stat.label, bold: true })] })] }),
@@ -120,7 +124,7 @@ export const exportToExcel = async (data: ExportData) => {
     const summaryData = [
       ['Report', data.title],
       ['Date Range', `${data.dateRange.startDate} to ${data.dateRange.endDate}`],
-      ['Generated', new Date().toLocaleDateString()],
+      ['Generated', formatDateString(new Date().toISOString(), useLanguageStore.getState().language)],
       [],
       ['Metric', 'Value', 'Change'],
       ...data.stats.map(s => [s.label, s.value, s.change || '-']),
@@ -155,15 +159,9 @@ export const exportToExcel = async (data: ExportData) => {
  */
 export const exportToPDF = (data: ExportData) => {
   const now = new Date();
-  const formattedDate = now.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  const formattedTime = now.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const language = useLanguageStore.getState().language;
+  const formattedDate = formatDateString(now.toISOString(), language);
+  const formattedTime = formatTransactionDate(now.toISOString(), language).split(' ').slice(-1)[0];
   
   const companyName = data.companyName || 'Pasale Business Management';
   const companyAddress = data.companyAddress || '';
@@ -671,15 +669,9 @@ const downloadFile = (blob: Blob, filename: string) => {
  */
 export const exportToHTML = (data: ExportData) => {
   const now = new Date();
-  const formattedDate = now.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  const formattedTime = now.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const language = useLanguageStore.getState().language;
+  const formattedDate = formatDateString(now.toISOString(), language);
+  const formattedTime = formatTransactionDate(now.toISOString(), language).split(' ').slice(-1)[0];
   
   const companyName = data.companyName || 'Pasale Business Management';
   const companyAddress = data.companyAddress || '';
@@ -1207,3 +1199,4 @@ export const printReport = (elementId?: string) => {
     window.print();
   }
 };
+

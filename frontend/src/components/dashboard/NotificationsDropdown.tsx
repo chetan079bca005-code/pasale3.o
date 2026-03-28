@@ -160,3 +160,4 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
     </div>
   );
 };
+

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { useTranslation } from '../../utils/i18n';
@@ -39,6 +40,8 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
 }) => {
   const { t } = useTranslation();
   const { parties, addTransaction } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
 
   // Determine initial values based on mode
   const getInitialType = () => {
@@ -67,9 +70,9 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [partyId, setPartyId] = useState(initialPartyId || '');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState(transactionSettings.defaultPaymentMethod || 'cash');
   const [category, setCategory] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(transactionSettings.defaultNotes || '');
   const [reference, setReference] = useState('');
   const [discount, setDiscount] = useState('');
   const [tax, setTax] = useState('13');
@@ -567,4 +570,5 @@ export const AddTransactionDialog: React.FC<AddTransactionDialogProps> = ({
     </div>
   );
 };
+
 

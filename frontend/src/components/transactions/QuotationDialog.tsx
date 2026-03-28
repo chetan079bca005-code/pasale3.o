@@ -1,6 +1,17 @@
+/**
+ * QuotationDialog Component
+ * 
+ * Modal dialog for creating and editing quotations/estimates.
+ * Includes validity period, terms, and item management.
+ * 
+ * @component
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../../store/dataStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { Button } from '../ui/Button';
+import { getTodayDateString, extractDatePart } from '../../utils/nepaliDate';
 import {
   FiX,
   FiPlus,
@@ -34,13 +45,15 @@ export const QuotationDialog: React.FC<QuotationDialogProps> = ({
   onSuccess,
 }) => {
   const { parties, addTransaction, updateTransaction } = useDataStore();
+  const { featureSettings } = useSettingsStore();
+  const transactionSettings = featureSettings.transactions;
   const isEdit = !!editData;
 
   // Form State
   const [partyId, setPartyId] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayDateString());
   const [validUntil, setValidUntil] = useState('');
   const [quotationNumber, setQuotationNumber] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
@@ -48,7 +61,7 @@ export const QuotationDialog: React.FC<QuotationDialogProps> = ({
   ]);
   const [additionalTax, setAdditionalTax] = useState(13);
   const [additionalDiscount, setAdditionalDiscount] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(transactionSettings.defaultNotes || '');
   const [terms, setTerms] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,8 +94,8 @@ export const QuotationDialog: React.FC<QuotationDialogProps> = ({
   useEffect(() => {
     if (editData) {
       setPartyId(editData.partyId || '');
-      setDate(editData.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
-      setValidUntil(editData.validUntil?.split('T')[0] || '');
+      setDate(extractDatePart(editData.date));
+      setValidUntil(editData.validUntil ? extractDatePart(editData.validUntil) : '');
       setQuotationNumber(editData.transactionNumber || '');
       setItems(editData.items?.length ? editData.items : [
         { id: '1', name: '', quantity: 1, rate: 0, tax: 0, discount: 0, total: 0 },
@@ -216,7 +229,7 @@ export const QuotationDialog: React.FC<QuotationDialogProps> = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700">
+        <div className="px-6 py-4 bg-linear-to-r from-purple-600 to-purple-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -541,3 +554,4 @@ export const QuotationDialog: React.FC<QuotationDialogProps> = ({
     </div>
   );
 };
+

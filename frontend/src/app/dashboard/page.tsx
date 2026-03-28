@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/dataStore';
 import { useAuthStore } from '../../store/authStore';
 import { useBusinessStore } from '../../store/businessStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { useTranslation } from '../../utils/i18n';
 import { useThemeStore } from '../../store/themeStore';
 import {
@@ -79,17 +80,21 @@ const MiniSparkline: React.FC<{ data: number[]; color: string; height?: number }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { t, c, n } = useTranslation();
+  const { t, c, n, d, dt, language } = useTranslation();
   const { theme } = useThemeStore();
+  const { general } = useSettingsStore();
   const { getTotalSales, getTotalReceivable, getTotalPayable, getCashInHand, transactions, expenses, parties } = useDataStore();
   const { userProfile } = useAuthStore();
   const { businessName } = useBusinessStore();
+  const locale = language === 'np' ? 'ne-NP' : 'en-US';
   
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [chartPeriod, setChartPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
 
   const isDark = theme === 'dark';
   const today = new Date();
+  const maskValue = (value: string) => (general.privacyMode ? '••••' : value);
+  const maskCurrency = (value: number) => maskValue(c(value));
 
   // Fetch products for low stock
   useEffect(() => {
@@ -189,7 +194,7 @@ export default function DashboardPage() {
       return Array.from({ length: 7 }).map((_, idx) => {
         const date = new Date();
         date.setDate(today.getDate() - (6 - idx));
-        const label = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const label = date.toLocaleDateString(locale, { weekday: 'short' });
         const salesSum = transactions
           .filter((t) => t.type === 'selling' && isSameDay(t.date, date))
           .reduce((s, t) => s + t.amount, 0);
@@ -204,7 +209,7 @@ export default function DashboardPage() {
         date.setMonth(date.getMonth() - (11 - idx));
         const m = date.getMonth();
         const y = date.getFullYear();
-        const label = date.toLocaleDateString('en-US', { month: 'short' });
+        const label = date.toLocaleDateString(locale, { month: 'short' });
         const salesSum = transactions
           .filter((t) => {
             const d = new Date(t.date);
@@ -248,7 +253,7 @@ export default function DashboardPage() {
     const salesByDay = Array.from({ length: 7 }).map((_, idx) => {
       const date = new Date();
       date.setDate(today.getDate() - (6 - idx));
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      const dayName = date.toLocaleDateString(locale, { weekday: 'long' });
       const sales = transactions
         .filter((t) => t.type === 'selling' && isSameDay(t.date, date))
         .reduce((s, t) => s + t.amount, 0);
@@ -324,7 +329,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5 sm:space-y-6 pb-6">
       {/* Page Header - Greeting with Modern Gradient Background */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl p-5 sm:p-6 shadow-xl">
+      <div className="">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="text-white">
@@ -333,13 +338,13 @@ export default function DashboardPage() {
             </h1>
             <div className="flex items-center gap-2 text-white/80 mt-2">
               <FiCalendar className="w-4 h-4" />
-              <span className="text-sm">{today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <span className="text-sm">{d(today.toISOString())}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-white">
               <p className="text-xs opacity-80">Today's Sales</p>
-              <p className="text-lg font-bold">{c(todaySalesTotal)}</p>
+              <p className="text-lg font-bold">{maskCurrency(todaySalesTotal)}</p>
             </div>
             <div className="px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-white">
               <p className="text-xs opacity-80">Transactions</p>
@@ -369,7 +374,7 @@ export default function DashboardPage() {
                 )}
               </div>
               <p className="text-white/70 text-[10px] font-medium mb-0.5 uppercase tracking-wider">{t('dashboard.totalSales')}</p>
-              <p className="text-xl lg:text-2xl font-bold tracking-tight">{c(totalSales)}</p>
+              <p className="text-xl lg:text-2xl font-bold tracking-tight">{maskCurrency(totalSales)}</p>
               <div className="mt-2 pt-2 border-t border-white/20">
                 <div className="h-8 opacity-80">
                   <MiniSparkline data={last7DaysSales} color="#ffffff" height={32} />
@@ -393,7 +398,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-gray-500 dark:text-gray-400 text-[10px] font-medium mb-0.5 uppercase tracking-wider">{t('dashboard.totalReceivable')}</p>
-              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{c(totalReceivable)}</p>
+              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{maskCurrency(totalReceivable)}</p>
               <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
                 <p className="text-[10px] text-gray-400 flex items-center gap-1">
                   <FiUsers className="w-3 h-3" />
@@ -417,7 +422,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-gray-500 dark:text-gray-400 text-[10px] font-medium mb-0.5 uppercase tracking-wider">{t('dashboard.totalPayable')}</p>
-              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{c(totalPayable)}</p>
+              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{maskCurrency(totalPayable)}</p>
               <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
                 <p className="text-[10px] text-gray-400 flex items-center gap-1">
                   <FiUsers className="w-3 h-3" />
@@ -441,7 +446,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-gray-500 dark:text-gray-400 text-[10px] font-medium mb-0.5 uppercase tracking-wider">{t('dashboard.cashInHand')}</p>
-              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{c(cashInHand)}</p>
+              <p className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">{maskCurrency(cashInHand)}</p>
               <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
                 <p className="text-[10px] text-gray-400">Available balance</p>
               </div>
@@ -465,7 +470,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="text-gray-500 dark:text-gray-400 text-[10px] font-medium mb-0.5 uppercase tracking-wider">{t('dashboard.netBalance')}</p>
-              <p className={`text-base lg:text-lg font-bold ${netBalance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>{c(netBalance)}</p>
+              <p className={`text-base lg:text-lg font-bold ${netBalance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>{maskCurrency(netBalance)}</p>
               <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
                 <p className="text-[10px] text-gray-400">Receivable - Payable</p>
               </div>
@@ -478,10 +483,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
         {/* Chart - 2 columns */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-gray-900/50 overflow-hidden">
-          <div className="p-5 lg:p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <div className="p-5 lg:p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
             <div>
               <h3 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                   <FiBarChart2 className="w-4 h-4 text-white" />
                 </div>
                 Revenue Analytics
@@ -525,7 +530,7 @@ export default function DashboardPage() {
                     boxShadow: '0 10px 40px -10px rgba(0, 0, 0, 0.2)',
                     padding: '12px 16px',
                   }}
-                  formatter={(value: number) => [c(value), '']}
+                  formatter={(value: number) => [maskCurrency(value), '']}
                 />
                 <Area type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={3} fill="url(#salesGradient)" name="Sales" />
                 <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={3} fill="url(#expenseGradient)" name="Expenses" />
@@ -536,11 +541,11 @@ export default function DashboardPage() {
           <div className="px-5 lg:px-6 pb-5 flex items-center justify-between border-t border-gray-100 dark:border-gray-700 pt-4 bg-gray-50/50 dark:bg-gray-900/30">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm shadow-blue-500/50"></div>
+                <div className="w-3 h-3 rounded-full bg-linear-to-r from-blue-500 to-blue-600 shadow-sm shadow-blue-500/50"></div>
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Sales</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-500 to-red-600 shadow-sm shadow-red-500/50"></div>
+                <div className="w-3 h-3 rounded-full bg-linear-to-r from-red-500 to-red-600 shadow-sm shadow-red-500/50"></div>
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Expenses</span>
               </div>
             </div>
@@ -555,9 +560,9 @@ export default function DashboardPage() {
 
         {/* Quick Insights Panel - Enhanced */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-gray-900/50 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
             <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                 <FiTarget className="w-4 h-4 text-white" />
               </div>
               Quick Insights
@@ -567,16 +572,16 @@ export default function DashboardPage() {
             {/* Today's Sales - Clickable */}
             <button
               onClick={() => navigate('/dashboard/todays-sales')}
-              className="w-full p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
+              className="w-full p-4 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
                     <FiTrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold">Today's Sales</p>
-                    <p className="text-lg font-bold text-blue-800 dark:text-blue-300">{c(todaySalesTotal)}</p>
+                    <p className="text-lg font-bold text-blue-800 dark:text-blue-300">{maskCurrency(todaySalesTotal)}</p>
                   </div>
                 </div>
                 <FiChevronRight className="w-5 h-5 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -586,16 +591,16 @@ export default function DashboardPage() {
             {/* Pending Receivables - Clickable */}
             <button
               onClick={() => navigate('/dashboard/kpi/receivable')}
-              className="w-full p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
+              className="w-full p-4 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
                     <FiUsers className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 font-bold">Pending Receivables</p>
-                    <p className="text-lg font-bold text-indigo-800 dark:text-indigo-300">{c(businessHealth.overdueReceivables)}</p>
+                    <p className="text-lg font-bold text-indigo-800 dark:text-indigo-300">{maskCurrency(businessHealth.overdueReceivables)}</p>
                   </div>
                 </div>
                 <FiChevronRight className="w-5 h-5 text-indigo-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -605,11 +610,11 @@ export default function DashboardPage() {
             {/* Low Inventory - Clickable */}
             <button
               onClick={() => navigate('/inventory?filter=low-stock')}
-              className="w-full p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
+              className="w-full p-4 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
                     <FiPackage className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -624,19 +629,19 @@ export default function DashboardPage() {
             {/* Top Customer - Clickable */}
             <button
               onClick={() => navigate('/parties?type=customer')}
-              className="w-full p-4 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20 rounded-xl hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-900/30 dark:hover:to-gray-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
+              className="w-full p-4 bg-linear-to-r from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20 rounded-xl hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-900/30 dark:hover:to-gray-900/30 transition-all duration-300 text-left group hover:shadow-md hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center shadow-lg shadow-slate-500/30">
+                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-slate-600 to-slate-700 flex items-center justify-center shadow-lg shadow-slate-500/30">
                     <FiBarChart2 className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-bold">Top Customer</p>
-                    <p className="text-base font-bold text-slate-800 dark:text-slate-300 truncate max-w-[120px]">{insights.topParty}</p>
+                    <p className="text-base font-bold text-slate-800 dark:text-slate-300 truncate max-w-400">{insights.topParty}</p>
                   </div>
                 </div>
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{c(insights.topPartyAmount)}</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{maskCurrency(insights.topPartyAmount)}</span>
               </div>
             </button>
           </div>
@@ -647,9 +652,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
         {/* Recent Activity Timeline */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-gray-900/50 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
             <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                 <FiActivity className="w-4 h-4 text-white" />
               </div>
               Recent Activity
@@ -670,7 +675,7 @@ export default function DashboardPage() {
             ) : (
               <div className="relative">
                 {/* Timeline line */}
-                <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-gradient-to-b from-blue-500 via-indigo-500 to-slate-300 dark:to-slate-700 rounded-full" />
+                <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-linear-to-b from-blue-500 via-indigo-500 to-slate-300 dark:to-slate-700 rounded-full" />
                 
                 <div className="space-y-4">
                   {recentTransactions.map((tx, index) => (
@@ -680,7 +685,7 @@ export default function DashboardPage() {
                       className="relative flex items-start gap-4 pl-12 w-full text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 -mx-2 px-2 py-3 rounded-xl transition-all duration-200 hover:shadow-md group"
                     >
                       {/* Timeline dot */}
-                      <div className={`absolute left-3 w-4 h-4 rounded-full ring-4 ring-white dark:ring-gray-800 shadow-lg ${tx.type === 'selling' ? 'bg-gradient-to-br from-blue-500 to-blue-600' : 'bg-gradient-to-br from-slate-500 to-slate-600'}`} />
+                      <div className={`absolute left-3 w-4 h-4 rounded-full ring-4 ring-white dark:ring-gray-800 shadow-lg ${tx.type === 'selling' ? 'bg-linear-to-br from-blue-500 to-blue-600' : 'bg-linear-to-br from-slate-500 to-slate-600'}`} />
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
@@ -688,13 +693,13 @@ export default function DashboardPage() {
                             {tx.description || (tx.type === 'selling' ? 'Sale' : 'Purchase')}
                           </p>
                           <span className={`text-sm font-bold ${tx.type === 'selling' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {tx.type === 'selling' ? '+' : '-'}{c(tx.amount)}
+                            {tx.type === 'selling' ? '+' : '-'}{maskCurrency(tx.amount)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-gray-400 flex items-center gap-1">
                             <FiClock className="w-3 h-3" />
-                            {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {dt(tx.date)}
                           </span>
                           {tx.partyName && (
                             <>
@@ -718,9 +723,9 @@ export default function DashboardPage() {
 
         {/* Business Health Panel - Enhanced */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-gray-900/50 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
             <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                 <FiActivity className="w-4 h-4 text-white" />
               </div>
               Business Health
@@ -728,7 +733,7 @@ export default function DashboardPage() {
           </div>
           <div className="p-5 space-y-4">
             {/* Cash Flow Status */}
-            <div className={`p-5 rounded-xl ${businessHealth.status === 'healthy' ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' : businessHealth.status === 'warning' ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20'}`}>
+            <div className={`p-5 rounded-xl ${businessHealth.status === 'healthy' ? 'bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' : businessHealth.status === 'warning' ? 'bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-linear-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20'}`}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Cash Flow Ratio</span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold shadow-sm ${businessHealth.status === 'healthy' ? 'bg-blue-500 text-white' : businessHealth.status === 'warning' ? 'bg-amber-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -747,12 +752,12 @@ export default function DashboardPage() {
               className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center shadow-sm">
                   <FiUsers className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="text-left">
                   <p className="text-xs text-gray-500 font-medium">Outstanding Receivables</p>
-                  <p className="text-base font-bold text-gray-900 dark:text-white">{c(businessHealth.overdueReceivables)}</p>
+                  <p className="text-base font-bold text-gray-900 dark:text-white">{maskCurrency(businessHealth.overdueReceivables)}</p>
                 </div>
               </div>
               <FiChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
@@ -761,10 +766,10 @@ export default function DashboardPage() {
             {/* Low Stock Alert */}
             <button
               onClick={() => navigate('/inventory?filter=low-stock')}
-              className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group ${lowStockItems.length > 0 ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 hover:from-amber-100 hover:to-orange-100' : 'bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
+              className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group ${lowStockItems.length > 0 ? 'bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 hover:from-amber-100 hover:to-orange-100' : 'bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${lowStockItems.length > 0 ? 'bg-gradient-to-br from-amber-500 to-orange-500' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${lowStockItems.length > 0 ? 'bg-linear-to-br from-amber-500 to-orange-500' : 'bg-gray-100 dark:bg-gray-700'}`}>
                   <FiPackage className={`w-5 h-5 ${lowStockItems.length > 0 ? 'text-white' : 'text-gray-400'}`} />
                 </div>
                 <div className="text-left">
@@ -783,12 +788,12 @@ export default function DashboardPage() {
               className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-900/30 dark:to-slate-800/20 flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-slate-100 to-slate-50 dark:from-slate-900/30 dark:to-slate-800/20 flex items-center justify-center shadow-sm">
                   <FiClock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </div>
                 <div className="text-left">
                   <p className="text-xs text-gray-500 font-medium">Pending to Suppliers</p>
-                  <p className="text-base font-bold text-gray-900 dark:text-white">{c(businessHealth.pendingPayments)}</p>
+                  <p className="text-base font-bold text-gray-900 dark:text-white">{maskCurrency(businessHealth.pendingPayments)}</p>
                 </div>
               </div>
               <FiChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
@@ -799,7 +804,7 @@ export default function DashboardPage() {
 
       {/* Low Stock Alert Banner - Enhanced */}
       {lowStockItems.length > 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-2xl p-5 sm:p-6 text-white shadow-2xl shadow-amber-500/30">
+        <div className="relative overflow-hidden bg-linear-to-r from-amber-500 via-orange-500 to-red-500 rounded-2xl p-5 sm:p-6 text-white shadow-2xl shadow-amber-500/30">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E')]" />
           <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start gap-4">
@@ -825,3 +830,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

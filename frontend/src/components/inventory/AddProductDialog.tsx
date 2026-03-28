@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../ui/NepaliRupeeIcon';
 import { useTranslation } from '../../utils/i18n';
+import { useSettingsStore } from '../../store/settingsStore';
 
 // API Configuration - Use environment variable or fallback
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -83,6 +84,8 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   isEdit = false
 }) => {
   const { t } = useTranslation();
+  const { featureSettings } = useSettingsStore();
+  const inventorySettings = featureSettings.inventory;
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     quantity: initialData?.quantity?.toString() || '',
@@ -279,11 +282,15 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
     { id: 'additional', label: 'Additional', icon: FiList },
   ];
 
+  const showSku = inventorySettings.enableSKU;
+  const showBarcode = inventorySettings.enableBarcode;
+  const codeFieldsCount = (showSku ? 1 : 0) + (showBarcode ? 1 : 0);
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-5xl bg-white dark:bg-gray-900 rounded-2xl max-h-[95vh] overflow-hidden shadow-2xl">
         {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 px-6 py-5 text-white">
+        <div className="bg-linear-to-r from-amber-500 via-orange-500 to-red-500 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -359,53 +366,59 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                          <FiHash className="w-4 h-4" />
-                          {t('dialog.skuBarcode')}
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={formData.sku}
-                            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                            placeholder="SKU-001"
-                            className="flex-1 px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-600 focus:outline-none focus:border-indigo-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={generateSKU}
-                            className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
-                          >
-                            Auto
-                          </button>
-                        </div>
-                      </div>
+                    {codeFieldsCount > 0 && (
+                      <div className={`grid gap-4 ${codeFieldsCount === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {showSku && (
+                          <div>
+                            <label className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                              <FiHash className="w-4 h-4" />
+                              {t('dialog.skuBarcode')}
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={formData.sku}
+                                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                                placeholder="SKU-001"
+                                className="flex-1 px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-600 focus:outline-none focus:border-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={generateSKU}
+                                className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                              >
+                                Auto
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                      <div>
-                        <label className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                          <FiBarChart2 className="w-4 h-4" />
-                          Barcode
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={formData.barcode}
-                            onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                            placeholder="Enter or generate"
-                            className="flex-1 px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-600 focus:outline-none focus:border-indigo-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={generateBarcode}
-                            className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
-                          >
-                            Auto
-                          </button>
-                        </div>
+                        {showBarcode && (
+                          <div>
+                            <label className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                              <FiBarChart2 className="w-4 h-4" />
+                              Barcode
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={formData.barcode}
+                                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                                placeholder="Enter or generate"
+                                className="flex-1 px-4 py-3 border-2 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-600 focus:outline-none focus:border-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={generateBarcode}
+                                className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                              >
+                                Auto
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
 
                     <div>
                       <label className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
@@ -777,7 +790,7 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-white bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -794,3 +807,4 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
     </div>
   );
 };
+

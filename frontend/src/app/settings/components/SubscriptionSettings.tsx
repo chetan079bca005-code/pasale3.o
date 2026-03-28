@@ -71,3 +71,4 @@ export const SubscriptionSettings: React.FC = () => {
         </div>
     );
 };
+

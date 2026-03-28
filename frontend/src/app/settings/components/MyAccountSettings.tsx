@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '../../../utils/i18n';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -6,6 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { useAuthStore } from '../../../store/authStore';
 import { FiUser, FiLogOut, FiCamera, FiMail, FiPhone, FiCheck } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { settingsApi } from '../../../utils/api';
 
 export const MyAccountSettings: React.FC = () => {
     const { t } = useTranslation();
@@ -13,34 +14,89 @@ export const MyAccountSettings: React.FC = () => {
     const { userProfile, updateUserProfile, logout } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [success, setSuccess] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const [form, setForm] = useState({
         name: userProfile.name || '',
         phone: userProfile.phone || '',
         email: userProfile.email || '',
-        photo: userProfile.photo || null as string | null,
+        photo: userProfile.photo || (null as string | null),
     });
+    const [initialForm, setInitialForm] = useState({
+        name: userProfile.name || '',
+        phone: userProfile.phone || '',
+        email: userProfile.email || '',
+        photo: userProfile.photo || (null as string | null),
+    });
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                setLoading(true);
+                const data = await settingsApi.getProfile();
+                const profile = data.profile || {};
+                updateUserProfile({
+                    name: data.username || '',
+                    email: data.email || '',
+                    phone: profile.phone_no || '',
+                    photo: profile.photo || null,
+                    businessName: profile.business_name || '',
+                });
+                const nextForm = {
+                    name: data.username || '',
+                    phone: profile.phone_no || '',
+                    email: data.email || '',
+                    photo: profile.photo || null,
+                };
+                setForm(nextForm);
+                setInitialForm(nextForm);
+            } catch (err) {
+                console.error('Failed to load profile', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProfile();
+    }, [updateUserProfile]);
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setForm({ ...form, photo: reader.result as string });
+                setForm((prev) => ({ ...prev, photo: reader.result as string }));
             };
             reader.readAsDataURL(file);
         }
     };
 
-    const handleSave = () => {
-        updateUserProfile({
-            name: form.name,
-            phone: form.phone,
-            email: form.email,
-            photo: form.photo,
-        });
-        setSuccess(t('settings.successUpdate'));
-        setTimeout(() => setSuccess(''), 3000);
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
+            await settingsApi.updateProfile({
+                username: form.name,
+                email: form.email,
+                phone_no: form.phone,
+                business_name: userProfile.businessName,
+                photo: form.photo,
+            });
+            updateUserProfile({
+                name: form.name,
+                phone: form.phone,
+                email: form.email,
+                photo: form.photo,
+            });
+            setInitialForm({ ...form });
+            setSuccess(t('settings.successUpdate'));
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            console.error(err);
+            setSuccess('Failed to save');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleLogout = () => {
@@ -50,6 +106,12 @@ export const MyAccountSettings: React.FC = () => {
         }
     };
 
+    const isDirty =
+        form.name !== initialForm.name ||
+        form.phone !== initialForm.phone ||
+        form.email !== initialForm.email ||
+        form.photo !== initialForm.photo;
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
             <div>
@@ -58,7 +120,6 @@ export const MyAccountSettings: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Profile Card */}
                 <div className="lg:col-span-1">
                     <Card className="p-6 flex flex-col items-center text-center h-full">
                         <div className="relative group cursor-pointer mb-4" onClick={() => fileInputRef.current?.click()}>
@@ -98,56 +159,60 @@ export const MyAccountSettings: React.FC = () => {
                     </Card>
                 </div>
 
-                {/* Right Column - Edit Form */}
                 <div className="lg:col-span-2 space-y-6">
                     <Card className="p-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">{t('settings.sections.myAccount.profileDetails')}</h3>
 
-                        <div className="space-y-5">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.fullName')}</label>
-                                <div className="relative">
-                                    <Input
-                                        value={form.name}
-                                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                        className="pl-10 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl"
-                                        placeholder={t('settings.sections.myAccount.enterName')}
-                                    />
-                                    <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {loading ? (
+                            <p className="text-gray-500 dark:text-gray-400">{t('settings.loading')}</p>
+                        ) : (
+                            <div className="space-y-5">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.phone')}</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.fullName')}</label>
                                     <div className="relative">
-                                        <div className="absolute left-0 top-0 bottom-0 px-3 bg-gray-100 dark:bg-gray-700 rounded-l-xl flex items-center border-y border-l border-gray-200 dark:border-gray-700 z-10">
-                                            <span className="text-sm text-gray-600 dark:text-gray-300">🇳🇵 +977</span>
+                                        <Input
+                                            value={form.name}
+                                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                            className="pl-11 sm:pl-12 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl"
+                                            placeholder={t('settings.sections.myAccount.enterName')}
+                                        />
+                                        <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.phone')}</label>
+                                        <div className="relative">
+                                            <div className="absolute left-0 top-0 bottom-0 w-20 sm:w-24 bg-gray-100 dark:bg-gray-700 rounded-l-xl flex items-center justify-center border-y border-l border-gray-200 dark:border-gray-700 z-10">
+                                                <span className="text-sm text-gray-600 dark:text-gray-300">🇳🇵 +977</span>
+                                            </div>
+                                            <Input
+                                                value={form.phone}
+                                                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                                                className="pl-24 sm:pl-28 pr-12 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl relative z-0"
+                                                placeholder="98XXXXXXXX"
+                                            />
+                                            <FiPhone className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-20" />
                                         </div>
-                                        <Input
-                                            value={form.phone}
-                                            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                            className="pl-24 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl relative z-0"
-                                            placeholder="98XXXXXXXX"
-                                        />
                                     </div>
-                                </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.email')}</label>
-                                    <div className="relative">
-                                        <Input
-                                            type="email"
-                                            value={form.email}
-                                            onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                            className="pl-10 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl"
-                                            placeholder="you@example.com"
-                                        />
-                                        <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.sections.myAccount.email')}</label>
+                                        <div className="relative">
+                                            <Input
+                                                type="email"
+                                                value={form.email}
+                                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                                className="pl-11 sm:pl-12 bg-gray-50 dark:bg-gray-800 border-none ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 rounded-xl"
+                                                placeholder="you@example.com"
+                                            />
+                                            <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="mt-8 flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-700">
                             {success ? (
@@ -158,14 +223,17 @@ export const MyAccountSettings: React.FC = () => {
                                     <span className="text-sm font-medium">{success}</span>
                                 </div>
                             ) : (
-                                <span className="text-sm text-gray-400">{t('settings.savedLocal')}</span>
+                                <span className={`text-sm ${isDirty ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                                    {isDirty ? t('settings.unsavedChanges') : t('settings.changesSaved')}
+                                </span>
                             )}
 
                             <Button
                                 onClick={handleSave}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
+                                disabled={isSaving || loading}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
                             >
-                                {t('settings.saveChanges')}
+                                {isSaving ? t('settings.saving') : t('settings.saveChanges')}
                             </Button>
                         </div>
                     </Card>

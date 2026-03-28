@@ -11,45 +11,13 @@ import { useDataStore } from '../../store/dataStore';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../utils/i18n';
 
-const formatDateTime = (language: string) => {
-  const now = new Date();
-  const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const daysNp = ['आइतबार', 'सोमबार', 'मङ्गलबार', 'बुधबार', 'बिहिबार', 'शुक्रबार', 'शनिबार'];
-  const monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const monthsNp = ['जनवरी', 'फेब्रुअरी', 'मार्च', 'अप्रिल', 'मे', 'जुन', 'जुलाई', 'अगस्ट', 'सेप्टेम्बर', 'अक्टोबर', 'नोभेम्बर', 'डिसेम्बर'];
-
-  const days = language === 'np' ? daysNp : daysEn;
-  const months = language === 'np' ? monthsNp : monthsEn;
-
-  const day = days[now.getDay()];
-  const month = months[now.getMonth()];
-  const date = now.getDate();
-  const year = now.getFullYear();
-
-  let hours = now.getHours();
-  const minutes = now.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? (language === 'np' ? 'अपराह्न' : 'PM') : (language === 'np' ? 'पूर्वाह्न' : 'AM');
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-
-  if (language === 'np') {
-    const toNepaliNum = (num: number) => {
-      const nepaliDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
-      return num.toString().split('').map(d => nepaliDigits[parseInt(d)]).join('');
-    };
-    return `${day}, ${month} ${toNepaliNum(date)}, ${toNepaliNum(year)} • ${toNepaliNum(hours)}:${toNepaliNum(parseInt(minutes))} ${ampm}`;
-  }
-
-  return `${day}, ${month} ${date}, ${year} • ${hours}:${minutes} ${ampm}`;
-};
-
 interface HeaderProps {
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarCollapsed }) => {
-  const { t, language } = useTranslation();
+  const { t, dt } = useTranslation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAddNew, setShowAddNew] = useState(false);
@@ -62,14 +30,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarCollap
   const { userProfile, logout } = useAuthStore();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const [currentDateTime, setCurrentDateTime] = useState(formatDateTime(language));
+  const [currentDateTime, setCurrentDateTime] = useState(dt(new Date().toISOString()));
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentDateTime(formatDateTime(language));
+      setCurrentDateTime(dt(new Date().toISOString()));
     }, 1000);
     return () => clearInterval(timer);
-  }, [language]);
+  }, [dt]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -240,7 +208,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarCollap
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
-                      navigate('/profile');
+                      navigate('/settings?section=my-account');
                     }}
                     className="w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
@@ -284,3 +252,4 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarCollap
     </>
   );
 };
+

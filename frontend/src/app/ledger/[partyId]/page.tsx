@@ -71,11 +71,20 @@ export default function LedgerPage() {
     }));
   }, [ledgerEntries, language]);
 
+  /**
+   * Handles exporting ledger data to PDF or Excel format
+   * TODO: Implement actual export functionality using exportUtils
+   * 
+   * @param format - The export format ('pdf' or 'excel')
+   */
   const handleExport = (format: 'pdf' | 'excel') => {
-    console.log(`Exporting ledger as ${format}`);
+    // TODO: Implement actual export using exportUtils
     alert(`Exporting ledger as ${format.toUpperCase()}`);
   };
 
+  /**
+   * Triggers browser's print dialog for the ledger
+   */
   const handlePrint = () => {
     window.print();
   };
@@ -96,7 +105,7 @@ export default function LedgerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-4 pb-6 sm:pb-8">
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
+      <div className="max-w-400 mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3 sm:gap-4">
             <Button onClick={() => navigate('/parties')} variant="outline" size="sm">

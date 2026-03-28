@@ -9,3 +9,4 @@ export { TransactionViewDialog } from './TransactionViewDialog';
 export { DeleteConfirmDialog } from './DeleteConfirmDialog';
 export { AddTransactionDialog } from './AddTransactionDialog';
 export { TransactionTable } from './TransactionTable';
+

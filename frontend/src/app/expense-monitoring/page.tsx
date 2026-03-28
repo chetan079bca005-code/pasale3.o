@@ -47,6 +47,7 @@ import {
   FiLoader,
 } from 'react-icons/fi';
 import { NepaliRupeeIcon } from '../../components/ui/NepaliRupeeIcon';
+import { formatDateString } from '../../utils/nepaliDate';
 
 // Category icons and colors
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; bgColor: string }> = {
@@ -80,6 +81,7 @@ export default function ExpenseMonitoringPage() {
   const { t, n, c, language } = useTranslation();
   const { theme } = useThemeStore();
   const navigate = useNavigate();
+  const locale = language === 'np' ? 'ne-NP' : 'en-US';
   const [isDark, setIsDark] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
@@ -206,13 +208,13 @@ export default function ExpenseMonitoringPage() {
       const last7Days: Record<string, number> = {};
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        last7Days[date.toLocaleDateString('en-US', { weekday: 'short' })] = 0;
+        last7Days[date.toLocaleDateString(locale, { weekday: 'short' })] = 0;
       }
       expenses.forEach((e) => {
         const expenseDate = new Date(e.date);
         const daysDiff = Math.floor((now.getTime() - expenseDate.getTime()) / (24 * 60 * 60 * 1000));
         if (daysDiff >= 0 && daysDiff < 7) {
-          const key = expenseDate.toLocaleDateString('en-US', { weekday: 'short' });
+          const key = expenseDate.toLocaleDateString(locale, { weekday: 'short' });
           if (last7Days[key] !== undefined) {
             last7Days[key] += e.amount;
           }
@@ -251,7 +253,7 @@ export default function ExpenseMonitoringPage() {
       const last12Months: { day: string; amount: number }[] = [];
       for (let i = 11; i >= 0; i--) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        const monthKey = date.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
         const monthExpenses = expenses.filter((e) => {
           const expenseDate = new Date(e.date);
           return expenseDate.getMonth() === date.getMonth() && expenseDate.getFullYear() === date.getFullYear();
@@ -274,7 +276,7 @@ export default function ExpenseMonitoringPage() {
       const dailyData: { month: string; income: number; expense: number }[] = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const dayKey = date.toLocaleDateString(locale, { weekday: 'short' });
         const dayExpense = expenses.filter((e) => {
           const expenseDate = new Date(e.date);
           return expenseDate.toDateString() === date.toDateString();
@@ -404,7 +406,7 @@ export default function ExpenseMonitoringPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-4 pb-6 sm:pb-8">
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
+      <div className="max-w-400 mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
         {/* Header - Interactive Style */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-linear-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border border-red-100 dark:border-red-800/30 hover:shadow-lg transition-all duration-300 cursor-default flex-1">
@@ -661,12 +663,12 @@ export default function ExpenseMonitoringPage() {
                       <div className="flex items-center gap-2 sm:gap-3 mt-0.5 sm:mt-1">
                         <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{expense.category}</span>
                         <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">•</span>
-                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">{new Date(expense.date).toLocaleDateString(language === 'np' ? 'ne-NP' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">{formatDateString(expense.date, language)}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm sm:text-lg font-bold text-red-600 dark:text-red-400">-{c(expense.amount)}</p>
-                      <p className="text-[10px] sm:hidden text-gray-500">{new Date(expense.date).toLocaleDateString(language === 'np' ? 'ne-NP' : 'en-US', { month: 'short', day: 'numeric' })}</p>
+                      <p className="text-[10px] sm:hidden text-gray-500">{formatDateString(expense.date, language)}</p>
                     </div>
                   </div>
                 );
@@ -820,3 +822,4 @@ export default function ExpenseMonitoringPage() {
     </div>
   );
 }
+
